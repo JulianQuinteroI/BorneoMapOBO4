@@ -1,0 +1,3232 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>COP BORNEO · Cuadro de Operaciones Tácticas</title>
+<meta name="description" content="Cuadro de operaciones tácticas interactivo del Juego de Guerra BORNEO (CEM-ARC). Material de trabajo NO AUTORITATIVO.">
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     COP BORNEO · Cuadro de Operaciones Tácticas Interactivo
+     Escenario: Juego de Guerra BORNEO · Nivel operacional · CEM-ARC 2026
+     Sistema visual heredado de «Mando Caribe · Atlas Logístico» (CCON1).
+     Fuentes: BOR-GEN-001/002, BOR-OBO-001/002/003/006, BOR-PAC-001/003, BOR-OWS-003/008.
+     AVISO: producto de trabajo. No constituye orden, ROE, regla especial,
+     autorización de ataque ni producto GIS georreferenciado.
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+
+<style>
+/* ════════════════ 1. TOKENS · sistema «Mando Caribe» ════════════════════════
+   Paleta, tipografía y geometría heredadas del Atlas Logístico del Caribe,
+   para que ambos visores del mismo grupo se lean como un solo sistema.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Superficies */
+  --bg-abismo:#e9eef5; --bg-panel:#ffffff; --bg-panel2:#f3f6fb;
+  --glass-bg:rgba(255,255,255,.74); --glass-bg-solid:rgba(255,255,255,.97);
+  --glass-brd:rgba(30,64,110,.16); --glass-brd-hi:rgba(8,145,178,.5);
+
+  /* Tinta */
+  --tinta:#13243b; --tinta-tenue:#46607d; --tinta-mut:#7286a0;
+
+  /* Acentos */
+  --cian:#0891b2; --cian-d:#0e7490; --ambar:#c2740a; --indigo:#4f46e5;
+  --verde:#16a34a; --rojo:#e11d48; --otan:#1d4ed8; --conjunto:#7c3aed;
+  /* Resto de la paleta del Atlas, no empleada aquí: --amarillo #d97706,
+     --armada #2563eb, --ejercito #16a34a, --fac #0891b2 */
+
+  --grad-titulo:linear-gradient(120deg,#0891b2,#4f46e5 58%,#c2740a);
+  --grad-acento:linear-gradient(90deg,#0891b2,#d97706);
+
+  /* Geometría */
+  --r-sm:8px; --r:14px; --r-lg:22px;   /* r-lg reservado para tarjetas grandes */
+  --sombra:0 12px 32px -16px rgba(30,60,110,.30);
+  --glow-cian:0 0 0 1px rgba(8,145,178,.22),0 0 22px -6px rgba(8,145,178,.38);
+  --blur:16px; --sb:348px; --insp:452px; --bar-h:64px; --foot-h:30px;
+
+  /* Tipografía */
+  --f-sans:'Manrope',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-tit:'Oswald',var(--f-sans);
+  --f-mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+
+  /* Paleta del tablero operacional OWS · muestreada de BOR-OWS-008.
+     Resto documentado: mar regional #c0daff · urbano #ece6d8 · frontera #030200. */
+  --ows-mar:#8ad4f7; --ows-tierra:#9dac6b; --ows-reticula:#fe0000; --ows-macro:#dd9713;
+
+  /* Movimiento */
+  --d-fast:150ms; --d-normal:280ms; --d-slow:420ms;
+  --e-out:cubic-bezier(.22,1,.36,1);
+}
+
+/* ════════════════ 2. RESET Y BASE ══════════════════════════════════════════ */
+*,*::before,*::after { box-sizing:border-box; }
+
+html,body {
+  margin:0; height:100%;
+  background:var(--bg-abismo); color:var(--tinta);
+  font:15px/1.55 var(--f-sans);
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior:none;
+}
+body { overflow:hidden; }
+
+button,input,select { font:inherit; color:inherit; }
+button { cursor:pointer; border:0; background:none; }
+[hidden] { display:none !important; }
+
+:focus-visible { outline:2px solid var(--cian); outline-offset:2px; border-radius:var(--r-sm); }
+
+::-webkit-scrollbar { width:11px; height:11px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:rgba(30,64,110,.22); border:3px solid transparent; background-clip:content-box; border-radius:8px; }
+::-webkit-scrollbar-thumb:hover { background:rgba(30,64,110,.38); background-clip:content-box; }
+
+.mono { font-family:var(--f-mono); font-variant-numeric:tabular-nums; }
+
+/* Rótulo de sección: el recurso que unifica toda la interfaz */
+.tag {
+  font:600 10px var(--f-tit); letter-spacing:.16em;
+  text-transform:uppercase; color:var(--tinta-mut);
+}
+
+.sr-only {
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
+
+/* ════════════════ 3. ARMAZÓN ═══════════════════════════════════════════════ */
+.cop {
+  display:grid;
+  grid-template-rows:var(--bar-h) 1fr var(--foot-h);
+  height:100dvh;
+  padding-top:env(safe-area-inset-top,0px);
+}
+
+.cop__stage { position:relative; overflow:hidden; }
+
+/* ---- 3.1 Cabecera ---- */
+.telemetry {
+  display:flex; align-items:center;
+  background:linear-gradient(180deg,rgba(255,255,255,.94),rgba(255,255,255,.66));
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--glass-brd);
+  position:relative; z-index:900;
+}
+
+.telemetry__brand {
+  display:flex; align-items:center; gap:12px;
+  padding:0 20px 0 16px;
+  align-self:stretch;
+  border-right:1px solid var(--glass-brd);
+  flex-shrink:0;
+}
+
+/* Emblema con anillo giratorio, como en el Atlas */
+.brand__mark {
+  width:40px; height:40px; flex:0 0 auto; position:relative;
+  border-radius:11px;
+  background:radial-gradient(circle at 30% 25%,#e6f6fb,#ffffff);
+  border:1px solid var(--glass-brd-hi);
+  display:grid; place-items:center;
+  color:var(--cian);
+  box-shadow:var(--glow-cian);
+}
+.brand__mark::after {
+  content:""; position:absolute; inset:-5px;
+  border:1px solid rgba(34,211,238,.3); border-radius:14px;
+  animation:spin 9s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.brand__txt { display:flex; flex-direction:column; gap:3px; }
+.brand__txt b {
+  font:600 16px/1 var(--f-tit); letter-spacing:.13em; text-transform:uppercase;
+  background:var(--grad-titulo); -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.brand__txt span { color:var(--tinta-mut); font-size:10.5px; letter-spacing:.04em; }
+
+.telemetry__read {
+  display:flex; align-items:center; gap:26px;
+  padding-inline:24px;
+  overflow-x:auto; scrollbar-width:none; flex:1 1 auto;
+}
+.telemetry__read::-webkit-scrollbar { display:none; }
+
+.readout { display:flex; flex-direction:column; gap:3px; flex-shrink:0; }
+.readout dt {
+  font:600 9.5px var(--f-tit); letter-spacing:.14em; text-transform:uppercase;
+  color:var(--tinta-mut); line-height:1;
+}
+.readout dd {
+  margin:0; font-family:var(--f-mono); font-size:12.5px; font-weight:600;
+  font-variant-numeric:tabular-nums; color:var(--tinta); line-height:1.1;
+}
+.readout dd.is-accent { color:var(--cian); }
+
+.telemetry__flag { display:flex; align-items:center; padding-inline:18px; flex-shrink:0; }
+
+/* Píldora de clasificación, idéntica en espíritu a «USO INSTITUCIONAL» */
+.classbar {
+  border:1px solid rgba(245,165,36,.45); color:var(--ambar);
+  background:rgba(245,165,36,.07);
+  padding:6px 14px; border-radius:20px;
+  font:600 10.5px var(--f-tit); letter-spacing:.09em; text-transform:uppercase;
+  white-space:nowrap;
+}
+
+/* ---- 3.2 Pie de estado ---- */
+.statusbar {
+  display:flex; align-items:center; gap:20px;
+  padding-inline:18px;
+  background:var(--bg-panel); border-top:1px solid var(--glass-brd);
+  font-family:var(--f-mono); font-size:10.5px; color:var(--tinta-mut);
+  overflow-x:auto; scrollbar-width:none;
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.statusbar::-webkit-scrollbar { display:none; }
+.statusbar span { white-space:nowrap; }
+.statusbar b { color:var(--tinta-tenue); font-weight:600; }
+
+.pulse {
+  display:inline-block; width:8px; height:8px; border-radius:50%;
+  background:var(--verde); box-shadow:0 0 8px var(--verde);
+  margin-right:7px; animation:blink 2.4s ease-in-out infinite;
+}
+@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+
+/* ════════════════ 4. MAPA ══════════════════════════════════════════════════ */
+#map { position:absolute; inset:0; background:#dbe6f1; z-index:1; }
+
+.leaflet-container { font-family:var(--f-sans); font-size:13px; background:#dbe6f1; }
+
+.leaflet-control-attribution {
+  background:rgba(255,255,255,.88) !important;
+  color:var(--tinta-mut) !important;
+  font-size:10px !important; padding:2px 7px !important;
+  border-top:1px solid var(--glass-brd); border-left:1px solid var(--glass-brd);
+  border-radius:var(--r-sm) 0 0 0;
+}
+.leaflet-control-attribution a { color:var(--tinta-tenue) !important; }
+
+.leaflet-control-zoom a {
+  width:34px !important; height:34px !important; line-height:32px !important;
+  font-size:19px !important;
+  background:var(--glass-bg-solid) !important; color:var(--tinta) !important;
+  border-color:var(--glass-brd) !important;
+  transition:background var(--d-fast),color var(--d-fast);
+}
+.leaflet-control-zoom a:first-child { border-radius:var(--r-sm) var(--r-sm) 0 0 !important; }
+.leaflet-control-zoom a:last-child { border-radius:0 0 var(--r-sm) var(--r-sm) !important; }
+.leaflet-control-zoom a:hover { background:#fff !important; color:var(--cian) !important; }
+
+.leaflet-control-scale-line {
+  background:rgba(255,255,255,.9) !important;
+  border-color:var(--glass-brd) !important; color:var(--tinta-tenue) !important;
+  font-family:var(--f-mono); font-size:10.5px; padding:2px 7px !important;
+  border-radius:3px;
+}
+.leaflet-top.leaflet-right .leaflet-control-scale { margin-top:8px; }
+
+/* Tratamiento de la base según la vista activa */
+.leaflet-container.base-atenuada .leaflet-tile-pane { filter:brightness(.72) contrast(1.10) saturate(.6); }
+.leaflet-container.base-realzada .leaflet-tile-pane { filter:brightness(.92) contrast(1.06) saturate(.88); }
+
+#map.base-tablero { background:var(--ows-mar); }
+.leaflet-container.base-tablero .leaflet-tile-pane { filter:saturate(1.45) contrast(1.02); }
+
+/* Sin viñeta ni grano: el sistema claro del Atlas no los usa */
+.stage-grain, .stage-vignette { display:none; }
+
+/* ════════════════ 5. BARRA LATERAL ═════════════════════════════════════════ */
+.rail {
+  position:absolute; top:0; bottom:0; left:0;
+  width:min(var(--sb),92vw);
+  z-index:800;
+  display:flex; flex-direction:column;
+  background:linear-gradient(180deg,#ffffff,#eef3f9);
+  border-right:1px solid var(--glass-brd);
+  box-shadow:var(--sombra);
+  transform:translateX(0);
+  transition:transform var(--d-normal) var(--e-out);
+}
+.rail.is-collapsed { transform:translateX(-101%); }
+
+/* Cabecera de la barra, con la línea de barrido del Atlas */
+.rail__head {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:16px 14px 15px 18px;
+  border-bottom:1px solid var(--glass-brd);
+  position:relative; overflow:hidden; flex-shrink:0;
+}
+.rail__head::after {
+  content:""; position:absolute; left:-40%; bottom:0; width:40%; height:2px;
+  background:linear-gradient(90deg,transparent,var(--cian),transparent);
+  animation:scan 7s linear infinite;
+}
+@keyframes scan { 0% { left:-40%; } 100% { left:130%; } }
+
+.rail__head h1 {
+  margin:0;
+  font:600 16px/1 var(--f-tit); letter-spacing:.13em; text-transform:uppercase;
+  background:var(--grad-titulo); -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.rail__head p {
+  margin:4px 0 0;
+  color:var(--tinta-mut); font-size:10.5px; letter-spacing:.04em;
+}
+
+.icon-btn {
+  width:34px; height:34px; flex-shrink:0;
+  display:grid; place-items:center;
+  border:1px solid var(--glass-brd);
+  background:rgba(120,160,220,.07);
+  color:var(--tinta-tenue);
+  border-radius:9px;
+  transition:color var(--d-fast),border-color var(--d-fast),background var(--d-fast);
+}
+.icon-btn:hover { color:var(--cian); border-color:var(--glass-brd-hi); background:#fff; }
+.icon-btn[aria-pressed="true"] { color:var(--cian); border-color:var(--glass-brd-hi); background:rgba(8,145,178,.1); }
+
+/* Pestaña de reapertura */
+.rail-tab {
+  position:absolute; top:50%; left:0; transform:translateY(-50%);
+  z-index:790; width:26px; height:92px;
+  display:grid; place-items:center;
+  background:var(--glass-bg-solid);
+  border:1px solid var(--glass-brd); border-left:0;
+  color:var(--cian);
+  border-radius:0 var(--r) var(--r) 0;
+  box-shadow:var(--sombra);
+  opacity:0; pointer-events:none;
+  transition:opacity var(--d-normal) var(--e-out);
+}
+.rail.is-collapsed ~ .rail-tab { opacity:1; pointer-events:auto; }
+
+/* ---- 5.1 Buscador ---- */
+.finder { padding:14px 12px 10px; flex-shrink:0; position:relative; }
+
+.finder__field {
+  display:flex; align-items:center; gap:10px;
+  border:1px solid var(--glass-brd);
+  background:#fff;
+  padding:10px 13px;
+  border-radius:10px;
+  transition:border-color var(--d-fast),box-shadow var(--d-fast);
+}
+.finder__field:focus-within { border-color:var(--glass-brd-hi); box-shadow:var(--glow-cian); }
+.finder__field svg { flex-shrink:0; color:var(--tinta-mut); }
+
+.finder input {
+  flex:1; min-width:0; border:0; background:none; outline:0;
+  font:500 13px var(--f-sans);
+}
+.finder input::placeholder { color:var(--tinta-mut); }
+
+.finder__hits {
+  position:absolute; inset-inline:12px; top:calc(100% - 4px);
+  max-height:380px; overflow-y:auto;
+  background:var(--glass-bg-solid);
+  border:1px solid var(--glass-brd-hi);
+  border-radius:var(--r);
+  box-shadow:var(--sombra);
+  backdrop-filter:blur(var(--blur));
+  z-index:60; padding:6px;
+}
+
+.hit {
+  display:block; width:100%; text-align:left;
+  padding:9px 11px; border-radius:9px;
+  transition:background var(--d-fast);
+}
+.hit:hover,.hit.is-active { background:rgba(8,145,178,.09); }
+.hit strong { display:block; font:600 13.5px var(--f-sans); line-height:1.3; color:var(--tinta); }
+.hit em {
+  display:block; margin-top:2px; font-style:normal;
+  font:600 9.5px var(--f-tit); letter-spacing:.12em; text-transform:uppercase; color:var(--tinta-mut);
+}
+.hit__none { padding:14px; font-size:13px; color:var(--tinta-mut); }
+
+/* ---- 5.2 Árbol de capas ---- */
+.tree { flex:1 1 auto; overflow-y:auto; overflow-x:hidden; padding:4px 10px 18px; }
+
+.branch { border:0; }
+
+/* Cabecera de grupo con el tratamiento `.sb-group` del Atlas */
+.branch__head {
+  position:sticky; top:0; z-index:4;
+  display:flex; align-items:center; gap:10px;
+  width:100%; padding:14px 8px 7px; text-align:left;
+  background:linear-gradient(180deg,#f7fafd 72%,rgba(247,250,253,0));
+  list-style:none;
+  font:600 10px var(--f-tit); letter-spacing:.16em; text-transform:uppercase;
+  color:var(--tinta-mut);
+}
+.branch__head::-webkit-details-marker { display:none; }
+.branch__head::marker { content:''; }
+
+.branch__idx {
+  width:20px; height:20px; flex-shrink:0;
+  display:grid; place-items:center; border-radius:6px;
+  font:700 9.5px var(--f-mono); color:#fff;
+  background:var(--tinta-mut);
+  transition:background var(--d-fast);
+}
+.branch.is-lit .branch__idx { background:var(--grad-acento); }
+
+.branch__title { flex:1; font:inherit; }
+.branch__count { font:600 9.5px var(--f-mono); color:var(--tinta-mut); font-variant-numeric:tabular-nums; }
+.branch__chev { color:var(--tinta-mut); transition:transform var(--d-normal) var(--e-out); }
+.branch[open] .branch__chev { transform:rotate(90deg); }
+
+.branch__body { padding:0 0 10px; }
+
+/* ---- 5.3 Fila de capa · patrón `.sb-item` ---- */
+.layer {
+  position:relative;
+  display:flex; align-items:flex-start; gap:12px;
+  width:100%; margin:2px 0; padding:10px 12px;
+  border-radius:10px; cursor:pointer; user-select:none;
+  color:var(--tinta-tenue);
+  transition:background var(--d-fast),color var(--d-fast);
+}
+.layer:hover { background:rgba(120,160,220,.09); color:var(--tinta); }
+
+/* Capa encendida = elemento de navegación activo */
+.layer:has(input:checked) {
+  background:linear-gradient(90deg,rgba(8,145,178,.14),rgba(8,145,178,.02));
+  color:var(--tinta);
+}
+.layer:has(input:checked)::before {
+  content:""; position:absolute; left:0; top:8px; bottom:8px;
+  width:3px; border-radius:3px;
+  background:var(--layer-tint,var(--cian));
+  box-shadow:0 0 10px var(--layer-tint,var(--cian));
+}
+
+.layer input { position:absolute; opacity:0; width:0; height:0; }
+
+.layer__box {
+  width:16px; height:16px; margin-top:2px; flex-shrink:0;
+  border:1.5px solid var(--glass-brd); background:#fff;
+  border-radius:5px;
+  display:grid; place-items:center;
+  transition:background var(--d-fast),border-color var(--d-fast);
+}
+.layer__box::after {
+  content:''; width:8px; height:8px; border-radius:2px; background:#fff;
+  transform:scale(0); transition:transform var(--d-fast) var(--e-out);
+}
+.layer:hover .layer__box { border-color:var(--tinta-mut); }
+.layer input:checked + .layer__box {
+  background:var(--layer-tint,var(--cian));
+  border-color:var(--layer-tint,var(--cian));
+}
+.layer input:checked + .layer__box::after { transform:scale(1); }
+.layer input:focus-visible + .layer__box { outline:2px solid var(--cian); outline-offset:3px; }
+
+.layer__meta { flex:1; min-width:0; }
+.layer__name { display:block; font:500 13.5px var(--f-sans); line-height:1.35; color:inherit; }
+.layer__hint {
+  display:block; margin-top:2px;
+  font-family:var(--f-mono); font-size:10.5px; color:var(--tinta-mut);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+.layer__swatch {
+  width:8px; height:8px; border-radius:50%; margin-top:6px; margin-left:auto; flex-shrink:0;
+  background:var(--layer-tint,var(--cian));
+  border:2px solid rgba(255,255,255,.55);
+  opacity:.3; transition:opacity var(--d-fast);
+}
+.layer input:checked ~ .layer__swatch { opacity:1; }
+
+/* Aviso dentro del árbol */
+.caveat {
+  margin:8px 4px 2px; padding:10px 12px;
+  border-left:3px solid var(--ambar);
+  background:rgba(245,165,36,.09);
+  border-radius:0 var(--r-sm) var(--r-sm) 0;
+  font-size:11.5px; line-height:1.55; color:var(--tinta-tenue);
+}
+.caveat b { color:var(--ambar); font-weight:700; }
+
+/* ---- 5.4 Herramientas ---- */
+.tools {
+  position:relative; flex-shrink:0;
+  border-top:1px solid var(--glass-brd);
+  background:var(--bg-panel2);
+  padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));
+}
+.tools::before {
+  content:''; position:absolute; inset-inline:0; bottom:100%; height:28px;
+  background:linear-gradient(180deg,rgba(243,246,251,0),rgba(243,246,251,.95));
+  pointer-events:none;
+}
+
+.tools__row { display:flex; flex-wrap:wrap; gap:6px; }
+
+/* Botón de herramienta · patrón `.chips button` del Atlas */
+.tool {
+  flex:1 1 auto;
+  display:flex; align-items:center; justify-content:center; gap:7px;
+  min-height:36px; padding:0 14px;
+  background:rgba(15,30,60,.04);
+  border:1px solid var(--glass-brd);
+  color:var(--tinta-tenue);
+  border-radius:20px;
+  font:600 10.5px var(--f-tit); letter-spacing:.1em; text-transform:uppercase;
+  transition:color var(--d-fast),border-color var(--d-fast),background var(--d-fast);
+}
+.tool:hover { color:var(--tinta); border-color:var(--glass-brd-hi); background:#fff; }
+.tool[aria-pressed="true"] {
+  background:var(--grad-acento); color:#04121a; border-color:transparent; font-weight:700;
+}
+
+/* Conmutador segmentado */
+.seg { display:flex; gap:5px; margin-top:6px; flex-wrap:wrap; }
+.seg > button {
+  flex:1 1 auto; min-height:30px; padding:0 10px;
+  background:rgba(15,30,60,.04);
+  border:1px solid var(--glass-brd);
+  color:var(--tinta-mut);
+  border-radius:20px;
+  font:600 10px var(--f-tit); letter-spacing:.09em; text-transform:uppercase;
+  transition:color var(--d-fast),background var(--d-fast),border-color var(--d-fast);
+}
+.seg > button:hover { color:var(--tinta); border-color:var(--glass-brd-hi); background:#fff; }
+.seg > button[aria-pressed="true"] {
+  background:var(--grad-acento); color:#04121a; border-color:transparent; font-weight:700;
+}
+.seg[data-accent="warn"] > button[aria-pressed="true"] { background:linear-gradient(90deg,#c2740a,#d97706); color:#fff; }
+
+.seg-label { display:flex; align-items:center; gap:9px; margin-top:13px; }
+.seg-label > span {
+  font:600 9.5px var(--f-tit); letter-spacing:.16em; text-transform:uppercase; color:var(--tinta-mut);
+}
+.seg-label::after { content:''; flex:1; height:1px; background:var(--glass-brd); }
+
+/* ════════════════ 6. INSPECTOR DE ENTIDADES ════════════════════════════════ */
+.inspector {
+  position:absolute; top:0; bottom:0; right:0;
+  width:min(var(--insp),96vw);
+  z-index:810;
+  display:flex; flex-direction:column;
+  background:var(--glass-bg-solid);
+  backdrop-filter:blur(var(--blur));
+  border-left:1px solid var(--glass-brd);
+  box-shadow:var(--sombra);
+  transform:translateX(101%);
+  transition:transform var(--d-normal) var(--e-out);
+}
+.inspector.is-open { transform:translateX(0); }
+
+/* Banda de bando en el canto */
+.inspector::before {
+  content:''; position:absolute; top:0; bottom:0; left:0; width:4px;
+  background:var(--side-tint,var(--tinta-mut));
+  transition:background var(--d-normal);
+}
+
+.inspector__head {
+  padding:20px 22px 16px;
+  border-bottom:1px solid var(--glass-brd);
+  background:linear-gradient(180deg,#fff,var(--bg-panel2));
+  flex-shrink:0;
+}
+
+.inspector__top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+
+.inspector__kicker {
+  margin:0;
+  font:600 10px var(--f-tit); letter-spacing:.17em; text-transform:uppercase;
+  color:var(--side-tint,var(--tinta-mut));
+}
+
+/* Título con degradado, como los `h2` del Atlas */
+.inspector__title {
+  margin:7px 0 0;
+  font:600 23px/1.2 var(--f-tit); letter-spacing:.04em;
+  background:var(--grad-titulo); -webkit-background-clip:text; background-clip:text; color:transparent;
+  text-wrap:balance;
+}
+
+.inspector__alias {
+  margin:7px 0 0;
+  font-family:var(--f-mono); font-size:10.5px; line-height:1.5; color:var(--tinta-mut);
+}
+
+.chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; }
+
+.chip {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 11px; border-radius:20px;
+  border:1px solid currentColor;
+  font:600 10px var(--f-tit); letter-spacing:.09em; text-transform:uppercase;
+  line-height:1.3;
+}
+.chip::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0; }
+.chip--obo     { color:var(--rojo);     background:rgba(225,29,72,.07); }
+.chip--pacteak { color:var(--otan);     background:rgba(29,78,216,.07); }
+.chip--neutral { color:var(--conjunto); background:rgba(124,58,237,.07); }
+.chip--nsl     { color:var(--verde);    background:rgba(22,163,74,.07); }
+.chip--target  { color:var(--rojo);     background:rgba(225,29,72,.07); }
+.chip--rtl     { color:var(--ambar);    background:rgba(194,116,10,.08); }
+.chip--info    { color:var(--tinta-tenue); background:rgba(70,96,125,.07); }
+.chip--cyber   { color:var(--cian);     background:rgba(8,145,178,.07); }
+
+.inspector__body { flex:1 1 auto; overflow-y:auto; padding:0 22px 40px; }
+
+.block { padding-top:20px; }
+
+.block__label {
+  display:flex; align-items:center; gap:10px; margin:0 0 11px;
+  font:600 10px var(--f-tit); letter-spacing:.17em; text-transform:uppercase; color:var(--tinta-mut);
+}
+.block__label::after { content:''; flex:1; height:1px; background:var(--glass-brd); }
+
+.block p { margin:0 0 11px; font-size:14.5px; line-height:1.62; color:var(--tinta-tenue); }
+.block p:last-child { margin-bottom:0; }
+.block strong { color:var(--tinta); font-weight:700; }
+
+/* Tabla de datos · patrón `table.data` */
+.facts {
+  display:grid; grid-template-columns:minmax(108px,40%) 1fr;
+  gap:1px; margin:0;
+  background:var(--glass-brd);
+  border:1px solid var(--glass-brd);
+  border-radius:var(--r);
+  overflow:hidden;
+}
+.facts > dt,.facts > dd { margin:0; padding:10px 13px; background:#fff; transition:background var(--d-fast); }
+.facts > dt {
+  font:600 9.5px var(--f-tit); letter-spacing:.1em; text-transform:uppercase;
+  color:var(--tinta-mut); line-height:1.5;
+}
+.facts > dd {
+  font-family:var(--f-mono); font-size:12.5px; font-variant-numeric:tabular-nums;
+  color:var(--tinta); line-height:1.5;
+}
+.facts:hover > dt,.facts:hover > dd { background:#fcfdfe; }
+
+/* Coordenadas */
+.coords { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:11px; }
+.coord-card {
+  border:1px solid var(--glass-brd); background:#fff;
+  padding:11px 13px; border-radius:var(--r-sm);
+}
+.coord-card span {
+  display:block;
+  font:600 9px var(--f-tit); letter-spacing:.14em; text-transform:uppercase; color:var(--tinta-mut);
+}
+.coord-card b {
+  display:block; margin-top:5px;
+  font-family:var(--f-mono); font-size:12.5px; font-weight:700;
+  color:var(--cian); font-variant-numeric:tabular-nums;
+}
+
+.rangeline {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:11px 14px;
+  border:1px dashed var(--glass-brd-hi);
+  border-radius:var(--r-sm);
+  background:rgba(8,145,178,.05);
+}
+.rangeline span {
+  font:600 9.5px var(--f-tit); letter-spacing:.12em; text-transform:uppercase; color:var(--tinta-mut);
+}
+.rangeline b {
+  font-family:var(--f-mono); font-size:14px; font-weight:700;
+  color:var(--cian); font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+
+/* Citas de fuente · patrón `.chiplist` */
+.cites { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.cites li {
+  background:rgba(8,145,178,.06);
+  border:1px solid var(--glass-brd);
+  border-radius:var(--r-sm);
+  padding:7px 11px;
+  font-family:var(--f-mono); font-size:10.5px; line-height:1.55; color:var(--tinta-tenue);
+}
+
+.note-warn {
+  margin:0 !important; padding:12px 15px;
+  border-left:3px solid var(--ambar);
+  border-radius:0 var(--r-sm) var(--r-sm) 0;
+  background:rgba(245,165,36,.09);
+  font-size:12.5px !important; line-height:1.62 !important; color:var(--tinta-tenue) !important;
+}
+.note-warn b { color:var(--ambar); font-weight:700; }
+
+.inspector__empty {
+  flex:1; display:grid; place-content:center; justify-items:center;
+  text-align:center; padding:56px 24px; gap:16px;
+}
+.inspector__empty svg { color:var(--glass-brd-hi); opacity:.55; }
+.inspector__empty p { margin:0; max-width:34ch; font-size:13.5px; color:var(--tinta-mut); line-height:1.62; }
+
+/* ════════════════ 7. PANEL DE MEDICIÓN · tarjeta flotante ══════════════════ */
+.ruler {
+  position:absolute; left:calc(min(var(--sb),92vw) + 14px); bottom:14px;
+  z-index:780; width:min(320px,calc(100vw - 28px));
+  background:var(--glass-bg);
+  border:1px solid var(--glass-brd-hi);
+  border-radius:var(--r-lg);
+  box-shadow:var(--sombra),var(--glow-cian);
+  backdrop-filter:blur(var(--blur));
+  overflow:hidden;
+  transition:left var(--d-normal) var(--e-out);
+}
+.rail.is-collapsed ~ .ruler { left:14px; }
+
+.ruler__head {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:9px 9px 9px 14px;
+  border-bottom:1px solid var(--glass-brd);
+  background:rgba(8,145,178,.07);
+}
+.ruler__head b {
+  font:600 10px var(--f-tit); letter-spacing:.14em; text-transform:uppercase; color:var(--cian-d);
+}
+
+.ruler__body { padding:15px; }
+
+/* Cifra principal · patrón `.kpi .v` */
+.ruler__big { display:flex; align-items:baseline; gap:8px; margin:0; }
+.ruler__big b { font:800 30px/1 var(--f-mono); color:var(--tinta); letter-spacing:-.02em; }
+.ruler__big span { font:600 10px var(--f-tit); letter-spacing:.14em; text-transform:uppercase; color:var(--cian); }
+
+.ruler__sub { margin-top:15px; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.ruler__sub div { border-top:1px solid var(--glass-brd); padding-top:8px; }
+.ruler__sub span {
+  display:block; font:600 9px var(--f-tit); letter-spacing:.12em; text-transform:uppercase; color:var(--tinta-mut);
+}
+.ruler__sub b {
+  display:block; margin-top:4px;
+  font-family:var(--f-mono); font-size:13px; font-weight:700; color:var(--tinta);
+  font-variant-numeric:tabular-nums;
+}
+
+.ruler__hint { margin:15px 0 0; font-size:11px; line-height:1.6; color:var(--tinta-mut); }
+.ruler__hint b { color:var(--tinta-tenue); font-weight:700; }
+
+.seg-label-map {
+  background:var(--glass-bg-solid) !important;
+  border:1px solid var(--glass-brd-hi) !important;
+  color:var(--cian-d) !important;
+  font-family:var(--f-mono); font-size:11px; font-weight:700;
+  padding:3px 8px !important;
+  border-radius:var(--r-sm) !important;
+  box-shadow:var(--sombra) !important;
+  white-space:nowrap;
+}
+.seg-label-map::before { display:none !important; }
+
+/* ════════════════ 8. LEYENDA · patrón `.map-legend` ════════════════════════ */
+.legend {
+  position:absolute; right:14px; bottom:14px;
+  z-index:770; width:min(250px,calc(100vw - 28px));
+  background:var(--glass-bg);
+  border:1px solid var(--glass-brd);
+  border-radius:var(--r-lg);
+  box-shadow:var(--sombra);
+  backdrop-filter:blur(var(--blur));
+  padding:10px 12px;
+  transition:right var(--d-normal) var(--e-out);
+}
+.inspector.is-open ~ .legend { right:calc(min(var(--insp),96vw) + 14px); }
+
+.legend__head {
+  display:flex; align-items:center; gap:8px; width:100%;
+  cursor:pointer; user-select:none;
+}
+.legend__head b {
+  flex:1; text-align:left;
+  font:600 11px var(--f-tit); letter-spacing:.12em; text-transform:uppercase; color:var(--tinta-tenue);
+}
+.legend__head svg { width:18px; height:18px; color:var(--tinta-mut); transition:transform var(--d-normal); }
+.legend[data-open="false"] .legend__head svg { transform:rotate(-90deg); }
+.legend[data-open="false"] .legend__body { display:none; }
+
+.legend__body {
+  margin-top:8px; display:grid; gap:2px;
+  max-height:min(52vh,340px); overflow-y:auto;
+}
+
+.legend__row {
+  display:flex; align-items:center; gap:9px;
+  padding:4px 6px; border-radius:7px;
+  font-size:12.5px; color:var(--tinta-tenue); line-height:1.35;
+  transition:background var(--d-fast);
+}
+.legend__row:hover { background:rgba(120,160,220,.1); }
+.legend__key { width:16px; height:11px; flex-shrink:0; border-radius:2px; }
+.legend__key--dot { width:13px; height:13px; border-radius:50%; border:2px solid rgba(255,255,255,.25); }
+.legend__key--ring { background:transparent; border:1px dashed currentColor; }
+.legend__key--line { height:0; border-top-width:2px; border-top-style:solid; }
+
+/* ════════════════ 9. MARCADORES Y POPUPS ═══════════════════════════════════ */
+.mk {
+  display:grid; place-items:center; width:100%; height:100%;
+  transition:transform var(--d-fast) var(--e-out),filter var(--d-fast);
+}
+.mk:hover { transform:scale(1.22); filter:brightness(1.12); z-index:999; }
+.mk.is-picked { transform:scale(1.3); }
+.mk svg { display:block; filter:drop-shadow(0 2px 4px rgba(12,30,60,.35)); }
+
+.mk-halo { position:absolute; inset:-7px; border:1.5px solid currentColor; border-radius:50%; opacity:0; }
+.mk.is-picked .mk-halo { opacity:.9; animation:halo 1.9s var(--e-out) infinite; }
+@keyframes halo { 0% { transform:scale(.8); opacity:.9; } 100% { transform:scale(2.4); opacity:0; } }
+
+.leaflet-popup-content-wrapper {
+  background:var(--glass-bg-solid) !important; color:var(--tinta) !important;
+  border:1px solid var(--glass-brd-hi); border-radius:12px !important;
+  box-shadow:var(--sombra) !important;
+}
+.leaflet-popup-tip { background:var(--glass-bg-solid) !important; border:1px solid var(--glass-brd-hi); }
+.leaflet-popup-content { margin:14px 16px !important; font-size:13px; line-height:1.5; }
+.leaflet-popup-content b {
+  display:block; margin-bottom:5px;
+  font:600 15px/1.25 var(--f-tit); letter-spacing:.03em; color:var(--tinta);
+}
+.leaflet-popup-content em {
+  display:block; font-style:normal;
+  font:600 9.5px var(--f-tit); letter-spacing:.12em; text-transform:uppercase; color:var(--tinta-mut);
+}
+.leaflet-popup-content .pop-cta {
+  display:block; margin-top:11px; cursor:pointer;
+  font:600 10px var(--f-tit); letter-spacing:.11em; text-transform:uppercase; color:var(--cian);
+}
+.leaflet-popup-content .pop-cta:hover { text-decoration:underline; }
+.leaflet-container a.leaflet-popup-close-button {
+  color:var(--tinta-mut) !important; font-size:19px !important;
+  width:28px !important; height:28px !important;
+}
+
+/* Rótulos sobre el mapa: halo blanco, propio de cartografía clara */
+.map-tag {
+  background:none !important; border:0 !important; box-shadow:none !important;
+  font:700 11.5px var(--f-mono); letter-spacing:.06em; text-transform:uppercase;
+  text-shadow:0 0 3px #fff,0 0 7px #fff,0 0 11px rgba(255,255,255,.9);
+  white-space:nowrap; pointer-events:none;
+}
+.map-tag.is-node    { transition:opacity var(--d-normal) var(--e-out); }
+.leaflet-container.is-far .map-tag.is-node { opacity:0; }
+.map-tag.is-joa     { color:var(--cian-d); font:600 13px var(--f-tit); letter-spacing:.24em; }
+.map-tag.is-hex     { color:rgba(30,60,110,.45); font-size:10px; letter-spacing:.04em; }
+.map-tag.is-hostile { color:#a3123b; }
+.map-tag.is-nato    { color:#123a94; }
+.map-tag.is-neutral { color:#5b2bb0; }
+.map-tag.is-warn    { color:#8a520a; }
+
+/* Sobre la base oscura se invierte el halo */
+.leaflet-container.base-atenuada .map-tag {
+  text-shadow:0 0 4px #000,0 0 9px #000,0 1px 2px #000;
+}
+.leaflet-container.base-atenuada .map-tag.is-joa     { color:#5eead4; }
+.leaflet-container.base-atenuada .map-tag.is-hostile { color:#ff8fa3; }
+.leaflet-container.base-atenuada .map-tag.is-nato    { color:#93c5fd; }
+.leaflet-container.base-atenuada .map-tag.is-neutral { color:#c4b5fd; }
+.leaflet-container.base-atenuada .map-tag.is-warn    { color:#fcd34d; }
+.leaflet-container.base-atenuada .map-tag.is-hex     { color:rgba(255,255,255,.4); }
+
+/* ════════════════ 10. ARRANQUE ═════════════════════════════════════════════ */
+.boot {
+  position:absolute; inset:0; z-index:950;
+  display:grid; place-content:center; justify-items:center; gap:18px;
+  text-align:center; padding:32px;
+  background:var(--bg-abismo);
+  transition:opacity var(--d-slow) var(--e-out);
+}
+.boot.is-gone { opacity:0; pointer-events:none; }
+.boot h2 {
+  margin:0;
+  font:600 18px var(--f-tit); letter-spacing:.06em; text-transform:uppercase;
+  background:var(--grad-titulo); -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.boot p { margin:0; max-width:52ch; font-size:13.5px; color:var(--tinta-mut); line-height:1.62; }
+.boot code { font-family:var(--f-mono); font-size:12px; color:var(--tinta-tenue); }
+.boot__bar { width:210px; height:3px; background:var(--glass-brd); border-radius:3px; overflow:hidden; }
+.boot__bar i { display:block; height:100%; width:40%; background:var(--grad-acento); animation:load 1.3s ease-in-out infinite; }
+@keyframes load { 0% { transform:translateX(-120%); } 100% { transform:translateX(320%); } }
+
+/* ════════════════ 11. RESPONSIVO ═══════════════════════════════════════════ */
+@media (max-width:1100px) { .legend { width:min(230px,calc(100vw - 28px)); } }
+
+@media (max-width:900px) {
+  .ruler { left:14px; }
+  .inspector.is-open ~ .legend { right:14px; }
+  .legend { display:none; }
+}
+
+@media (max-width:640px) {
+  :root { --bar-h:58px; --foot-h:28px; }
+  .telemetry__brand { padding-inline:12px 14px; }
+  .brand__txt span { display:none; }
+  .telemetry__read { gap:18px; padding-inline:16px; }
+  .rail { width:min(320px,94vw); }
+  .inspector { width:100vw; }
+  .ruler { width:calc(100vw - 28px); }
+  .inspector__title { font-size:20px; }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  *,*::before,*::after {
+    animation-duration:.001ms !important; animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="cop">
+
+  <!-- ═══════════ BARRA DE TELEMETRÍA ═══════════════════════════════════════ -->
+  <header class="telemetry">
+    <div class="telemetry__brand">
+      <span class="brand__mark" aria-hidden="true">
+        <svg width="19" height="19" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+          <circle cx="8" cy="8" r="6.2"/><circle cx="8" cy="8" r="2.4"/>
+          <path d="M8 .6v2.4M8 13v2.4M.6 8h2.4M13 8h2.4"/>
+        </svg>
+      </span>
+      <span class="brand__txt">
+        <b>COP BORNEO</b>
+        <span>CEM-ARC · NIVEL OPERACIONAL</span>
+      </span>
+    </div>
+
+    <dl class="telemetry__read">
+      <div class="readout"><dt>DTG</dt><dd id="tmDtg">—</dd></div>
+      <div class="readout"><dt>Lat</dt><dd id="tmLat">—</dd></div>
+      <div class="readout"><dt>Lon</dt><dd id="tmLon">—</dd></div>
+      <div class="readout"><dt>Decimal</dt><dd id="tmDec">—</dd></div>
+      <div class="readout"><dt>Zoom</dt><dd id="tmZoom">—</dd></div>
+      <div class="readout"><dt>Escala</dt><dd id="tmScale">—</dd></div>
+      <div class="readout"><dt>Capas</dt><dd id="tmLayers" class="is-accent">0</dd></div>
+      <div class="readout"><dt>Entidades</dt><dd id="tmEnts">0</dd></div>
+      <div class="readout"><dt>Base</dt><dd id="tmBase">—</dd></div>
+    </dl>
+
+    <div class="telemetry__flag">
+      <span class="classbar">MATERIAL DE TRABAJO · NO AUTORITATIVO</span>
+    </div>
+  </header>
+
+  <!-- ═══════════ ESCENARIO CARTOGRÁFICO ════════════════════════════════════ -->
+  <main class="cop__stage">
+    <div id="map" role="application" aria-label="Mapa táctico del área de operaciones Borneo"></div>
+    <div class="stage-grain" aria-hidden="true"></div>
+    <div class="stage-vignette" aria-hidden="true"></div>
+
+    <!-- ── Rail lateral: capas, buscador y herramientas ── -->
+    <aside class="rail" id="rail" aria-label="Control de capas y herramientas">
+
+      <div class="rail__head">
+        <div>
+          <h1>Control de capas</h1>
+          <p>JOA · Infra · Movilidad · Amenaza</p>
+        </div>
+        <button class="icon-btn" id="btnCollapse" title="Colapsar panel" aria-label="Colapsar panel lateral">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M10 3.5 5.5 8l4.5 4.5"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Buscador -->
+      <div class="finder">
+        <label class="sr-only" for="q">Buscar entidad, nodo o sistema</label>
+        <div class="finder__field">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+            <circle cx="7" cy="7" r="4.6"/><path d="m10.4 10.4 3.1 3.1"/>
+          </svg>
+          <input id="q" type="search" autocomplete="off" spellcheck="false"
+                 placeholder="Bintulu · Tenom · SA-20B · GNL · NAI 3…">
+        </div>
+        <div class="finder__hits" id="hits" hidden role="listbox" aria-label="Resultados"></div>
+      </div>
+
+      <!-- Árbol de capas (inyectado por JS) -->
+      <div class="tree" id="tree"></div>
+
+      <!-- Herramientas -->
+      <div class="tools">
+        <div class="tools__row">
+          <button class="tool" id="btnMeasure" aria-pressed="false" title="Medir distancia geodésica">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M1.5 10.5 10.5 1.5l4 4-9 9z"/><path d="M4 8l1.6 1.6M6.2 5.8 7.8 7.4M8.4 3.6 10 5.2"/>
+            </svg>
+            Medir
+          </button>
+          <button class="tool" id="btnClear" title="Limpiar mediciones y selección">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4"/>
+            </svg>
+            Limpiar
+          </button>
+          <button class="tool" id="btnJoa" title="Encuadrar el Área de Operaciones Conjunta">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2 5.5V2h3.5M10.5 2H14v3.5M14 10.5V14h-3.5M5.5 14H2v-3.5"/>
+            </svg>
+            JOA
+          </button>
+        </div>
+
+        <div class="seg-label"><span>Capa base</span></div>
+        <div class="seg" id="segBase" data-accent="radar" role="group" aria-label="Selector de capa base">
+          <button data-base="tablero" aria-pressed="true">Tablero</button>
+          <button data-base="dark"    aria-pressed="false">Táctico</button>
+          <button data-base="sat"     aria-pressed="false">Satélite</button>
+          <button data-base="topo"    aria-pressed="false">Topo</button>
+          <button data-base="none"    aria-pressed="false">Vacío</button>
+        </div>
+
+        <div class="seg-label"><span>Radios de amenaza</span></div>
+        <div class="seg" id="segRadius" data-accent="warn" role="group" aria-label="Origen de los radios de amenaza">
+          <button data-radius="caso" aria-pressed="true">Caso (JIPOE)</button>
+          <button data-radius="brief" aria-pressed="false">Brief</button>
+        </div>
+      </div>
+    </aside>
+
+    <button class="rail-tab" id="btnExpand" aria-label="Abrir panel lateral" title="Abrir panel">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M6 3.5 10.5 8 6 12.5"/>
+      </svg>
+    </button>
+
+    <!-- ── Panel de medición ── -->
+    <section class="ruler" id="ruler" hidden aria-live="polite">
+      <div class="ruler__head">
+        <b>Medición geodésica</b>
+        <button class="icon-btn" id="btnRulerClose" style="width:22px;height:22px" aria-label="Cerrar medición">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="m3.5 3.5 9 9M12.5 3.5l-9 9"/>
+          </svg>
+        </button>
+      </div>
+      <div class="ruler__body">
+        <p class="ruler__big"><b id="mTotalNm">0.0</b><span>NM TOTAL</span></p>
+        <div class="ruler__sub">
+          <div><span>Kilómetros</span><b id="mTotalKm">0.0 km</b></div>
+          <div><span>Vértices</span><b id="mPts">0</b></div>
+          <div><span>Último tramo</span><b id="mLast">—</b></div>
+          <div><span>Rumbo</span><b id="mBrg">—</b></div>
+        </div>
+        <p class="ruler__hint">Clic para añadir vértices · doble clic para cerrar la línea · <b>Limpiar</b> borra la traza. Cálculo esferoidal (haversine) sobre WGS84.</p>
+      </div>
+    </section>
+
+    <!-- ── Inspector de entidades ── -->
+    <aside class="inspector" id="inspector" aria-label="Inspector de entidades" aria-live="polite">
+      <div class="inspector__head">
+        <div class="inspector__top">
+          <div style="min-width:0">
+            <p class="inspector__kicker" id="ispKicker">Ficha técnica</p>
+            <h2 class="inspector__title" id="ispTitle">—</h2>
+            <p class="inspector__alias" id="ispAlias"></p>
+          </div>
+          <button class="icon-btn" id="btnIspClose" aria-label="Cerrar ficha">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="m3.5 3.5 9 9M12.5 3.5l-9 9"/>
+            </svg>
+          </button>
+        </div>
+        <div class="chips" id="ispChips"></div>
+      </div>
+      <div class="inspector__body" id="ispBody"></div>
+    </aside>
+
+    <!-- ── Leyenda ── -->
+    <section class="legend" id="legend" data-open="true" aria-label="Leyenda">
+      <button class="legend__head" id="btnLegend" aria-expanded="true">
+        <b>Leyenda</b>
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3.5 6 4.5 4.5L12.5 6"/></svg>
+      </button>
+      <div class="legend__body">
+        <div class="legend__row"><span class="legend__key legend__key--dot" style="background:#e11d48"></span>Control OBO · Kalimantan</div>
+        <div class="legend__row"><span class="legend__key legend__key--dot" style="background:#1d4ed8"></span>Control PACTEAK · coalición</div>
+        <div class="legend__row"><span class="legend__key legend__key--dot" style="background:#7c3aed"></span>Neutral · Indonesia y terceros</div>
+        <div class="legend__row"><span class="legend__key legend__key--dot" style="background:#0891b2"></span>Infraestructura energética</div>
+        <div class="legend__row"><span class="legend__key legend__key--line" style="border-color:var(--indigo)"></span>JOA · 8 puntos WARNORD</div>
+        <div class="legend__row"><span class="legend__key legend__key--line" style="border-color:#c2740a;border-top-style:dashed"></span>Frontera internacional</div>
+        <div class="legend__row"><span class="legend__key legend__key--ring" style="color:#e11d48"></span>Burbuja A2/AD</div>
+        <div class="legend__row"><span class="legend__key" style="background:repeating-linear-gradient(45deg,#c2740a 0 3px,transparent 3px 6px)"></span>Minado evaluado</div>
+        <div class="legend__row"><span class="legend__key legend__key--line" style="border-color:#46607d"></span>Pan-Borneo / Trans-Borneo</div>
+        <div class="legend__row"><span class="legend__key legend__key--line" style="border-color:#13243b;border-top-style:dotted"></span>Ferrocarril de Sabah</div>
+        <div class="legend__row" style="margin-top:4px;padding-top:7px;border-top:1px solid var(--c-line-soft)"><span class="legend__key" style="background:var(--ows-mar)"></span>Mar · paleta del tablero OWS</div>
+        <div class="legend__row"><span class="legend__key" style="background:var(--ows-tierra)"></span>Tierra · paleta del tablero OWS</div>
+      </div>
+    </section>
+
+    <!-- ── Pantalla de arranque ── -->
+    <div class="boot" id="boot">
+      <h2>Inicializando cuadro de operaciones</h2>
+      <div class="boot__bar"><i></i></div>
+      <p id="bootMsg">Cargando librería cartográfica y capas del escenario BORNEO…</p>
+    </div>
+  </main>
+
+  <!-- ═══════════ BARRA DE ESTADO ═══════════════════════════════════════════ -->
+  <footer class="statusbar">
+    <span><i class="pulse"></i>COP BORNEO v1.0</span>
+    <span>FUENTES: <b>BOR-GEN-001/002 · BOR-OBO-001/002/003/006 · BOR-PAC-001/003 · BOR-OWS-003/008</b></span>
+    <span>JOA: <b>8 PUNTOS · CIERRE P8→P1 HIPOTÉTICO</b></span>
+    <span>RETÍCULA: <b>DERIVADA, NO ES LA MALLA OWS IMPRESA</b></span>
+    <span>NO CONSTITUYE ORDEN, ROE NI AUTORIZACIÓN DE ATAQUE</span>
+  </footer>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════════════════════
+   MÓDULO 1 · DATOS DEL ESCENARIO
+   Cada entidad declara: bando controlador, estado de protección, datos del
+   caso y localizadores de fuente. Los valores sin respaldo documental se
+   marcan con `derivado:true` y no deben usarse para adjudicar.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ---- 1.1 Área de Operaciones Conjunta (ocho puntos de las WARNORD) ------- */
+const JOA_PUNTOS = [
+  { id: 'P1', ll: [-5,  110], txt: "05°00'S 110°00'E" },
+  { id: 'P2', ll: [-5,  118], txt: "05°00'S 118°00'E" },
+  { id: 'P3', ll: [-1,  119], txt: "01°00'S 119°00'E" },
+  { id: 'P4', ll: [ 4,  121], txt: "04°00'N 121°00'E" },
+  { id: 'P5', ll: [ 7,  119], txt: "07°00'N 119°00'E" },
+  { id: 'P6', ll: [ 8,  115], txt: "08°00'N 115°00'E" },
+  { id: 'P7', ll: [ 5,  105], txt: "05°00'N 105°00'E" },
+  { id: 'P8', ll: [ 0,  106], txt: "00°00'   106°00'E" }
+];
+
+/* ---- 1.2 Límites políticos (trazado simplificado, no cartográfico) ------- */
+const FRONTERAS = [
+  {
+    id: 'fr-srw-kal',
+    nombre: 'Frontera Sarawak (Malasia) – República de Kalimantan',
+    linea: [
+      [2.083,109.650],[1.950,109.780],[1.600,109.950],[1.400,110.050],[1.050,110.200],
+      [0.950,110.330],[1.000,110.600],[1.150,110.850],[1.250,111.150],[1.450,111.500],
+      [1.550,111.800],[1.450,112.200],[1.350,112.600],[1.450,113.000],[1.600,113.400],
+      [1.950,113.800],[2.300,114.200],[2.700,114.600],[3.000,114.900],[3.400,115.250],
+      [3.850,115.550],[4.200,115.750],[4.350,115.950]
+    ]
+  },
+  {
+    id: 'fr-sbh-kal',
+    nombre: 'Frontera Sabah (Malasia) – República de Kalimantan',
+    linea: [
+      [4.350,115.950],[4.350,116.300],[4.250,116.700],[4.150,117.050],
+      [4.150,117.400],[4.200,117.700],[4.250,117.900],[4.167,117.930]
+    ]
+  },
+  {
+    id: 'fr-brn-w',
+    nombre: 'Frontera de Brunéi Darussalam · sector occidental (Belait–Tutong–Brunei/Muara)',
+    linea: [
+      [4.583,114.192],[4.400,114.300],[4.317,114.550],[4.433,114.667],[4.583,114.750],
+      [4.650,114.833],[4.750,114.900],[4.850,115.033],[4.950,115.067]
+    ]
+  },
+  {
+    id: 'fr-brn-e',
+    nombre: 'Frontera de Brunéi Darussalam · sector oriental (Temburong)',
+    linea: [
+      [4.900,115.083],[4.700,115.100],[4.550,115.150],[4.400,115.200],
+      [4.550,115.300],[4.750,115.250],[4.900,115.183]
+    ]
+  },
+  {
+    id: 'fr-srw-sbh',
+    nombre: 'Límite interestatal Sarawak – Sabah (Malasia)',
+    linea: [
+      [4.950,115.400],[4.800,115.500],[4.600,115.700],[4.450,115.850],[4.350,115.950]
+    ]
+  }
+];
+
+/* ---- 1.3 Nodos: puertos, aeródromos, energía, mando y dispositivo -------- */
+/* bando: OBO | PACTEAK | NEUTRAL      proteccion: NSL | OBJETIVO | RTL | ND  */
+const NODOS = [
+
+/* ········· A · PUERTOS MAYORES (SPOD) ···································· */
+{ id:'pt-kuching', cap:'puerto-mayor', nombre:'Puerto de Kuching · Muelle Pending', alias:'Pending Wharf · Kuching Port Authority',
+  ll:[1.5486,110.3839], bando:'OBO', proteccion:'RTL', hex:'TAC-10/CX-114',
+  rel:'Mayor puerto de Sarawak y nodo del que depende el COA más probable de PACTEAK sobre el frente sur. Bajo control de Kalimantan desde la ofensiva inicial; es simultáneamente SPOD potencial de la coalición y objetivo de recuperación.',
+  datos:[['Muelle Pending','620 m'],['Calado mínimo','8 m'],['Buque máximo','175 m / 7,5 m calado'],['Cobertizos','24.000 m²'],['Patio contenedores','75.000 m² · 2 grúas · RORO'],['Distancia a la boca','35 km río Sarawak']],
+  fuentes:['〔BOR-GEN-002, p. 21〕','〔BOR-GEN-001, pp. 23-28〕','〔BOR-PAC-003, p. 19 · NAI puerto de Kuching〕'] },
+
+{ id:'pt-senari', cap:'puerto-mayor', nombre:'Terminal Senari', alias:'Kuching Port Authority · boca del río Sarawak',
+  ll:[1.6033,110.3300], bando:'OBO', proteccion:'RTL',
+  rel:'Terminal nueva en la desembocadura; admite buques mayores que el muelle Pending y evita los 35 km de río. Nodo de descarga preferente si Kuching cambia de mano.',
+  datos:[['Buque máximo','200 m'],['Calado','10 m'],['Porte','20.000 dwt']],
+  fuentes:['〔BOR-GEN-002, p. 21〕'] },
+
+{ id:'pt-bintulu', cap:'puerto-mayor', nombre:'Puerto de Bintulu', alias:'Bintulu Port · Tanjung Kidurong',
+  ll:[3.2686,113.0619], bando:'PACTEAK', proteccion:'RTL', hex:'TAC-10/DM-103',
+  rel:'Único puerto de entrada de gestión federal y único de aguas profundas en Sarawak. Primer puerto de GNL del país. NAI 4 del JIPOE OBO: desembarco anfibio de la coalición entre D+8 y D+15.',
+  datos:[['Canal','3 NM × 150 m × 15 m · todo el año'],['Muelle nuevo','65.000 dwt / 12 m calado'],['Rada abierta','buques > 175 m'],['MOG estratégico','0'],['MOG C-130','2 · 16 salidas/día']],
+  fuentes:['〔BOR-GEN-002, p. 21〕','〔BOR-GEN-002, p. B-2 · Figura 15〕','〔BOR-OBO-003, p. 19 · NAI 4〕'] },
+
+{ id:'pt-muara', cap:'puerto-mayor', nombre:'Puerto de Muara', alias:'Maura · Brunéi Darussalam',
+  ll:[5.0225,115.0686], bando:'PACTEAK', proteccion:'NSL',
+  rel:'Puerto principal de Brunéi y entrada logística natural para una fuerza terrestre de la coalición. El COA más peligroso evaluado por OBO hace partir desde Brunéi el esfuerzo terrestre estadounidense hacia Kuching.',
+  datos:[['Calado','12 m'],['Muelle','600 m'],['Régimen','Zona de libre comercio · contenedores'],['Distancia a la capital','27 km']],
+  fuentes:['〔BOR-GEN-002, p. 20〕','〔BOR-OBO-003, p. 17 · MDCOA〕'] },
+
+{ id:'pt-kk', cap:'puerto-mayor', nombre:'Puerto de Kota Kinabalu', alias:'KK Port · Sabah',
+  ll:[5.9804,116.0735], bando:'PACTEAK', proteccion:'RTL',
+  rel:'Nodo aliado sostenido en Sabah. El JIPOE OBO mantiene allí a la 13.ª Brigada malasia y un batallón bruneano, y ambos COA de la coalición lo tratan como base de concentración.',
+  datos:[['Puestos','8'],['Buque máximo','335 m / 16.000 dwt'],['Calado','10 m'],['Fondeadero','16 m'],['Contenedores','34 acres · RORO']],
+  fuentes:['〔BOR-GEN-002, p. 22〕','〔BOR-OBO-003, pp. 3, 16-17〕'] },
+
+{ id:'pt-sepanggar', cap:'puerto-mayor', nombre:'Bahía de Sepanggar · terminal y base naval', alias:'Sapangar Bay Oil Terminal · TLDM Sepanggar',
+  ll:[6.0586,116.1033], bando:'PACTEAK', proteccion:'RTL',
+  rel:'Terminal de líquidos a granel contigua a Kota Kinabalu; base naval malasia del sector occidental de Sabah. Complementa la capacidad de KK para combustible y apoyo naval.',
+  datos:[['Porte máximo','30.000 dwt'],['Puestos','1 exterior + 1 interior (barcazas)'],['Tuberías','9 de uso común + 6 exclusivas']],
+  fuentes:['〔BOR-GEN-002, p. 22〕'] },
+
+{ id:'pt-sandakan', cap:'puerto-mayor', nombre:'Puerto de Sandakan', alias:'Sabah oriental',
+  ll:[5.8402,118.1179], bando:'OBO', proteccion:'RTL', hex:'REG-100/K08',
+  rel:'Cabeza de puente de Kalimantan en el este de Sabah. Sostiene a la 3.ª División de Infantería del Distrito Militar Oriental y aloja un batallón SA-20B y otro de defensa costera C-802.',
+  datos:[['Puestos','4 + 1 pantalán petrolero'],['Porte máximo','18.000 dwt'],['Calado','9 m'],['Fondeadero','bueno'],['Guarnición A2/AD','2 Air Def Bde 3 BN · 2 Coastal Def Bde 2 BN']],
+  fuentes:['〔BOR-GEN-002, p. 22〕','〔BOR-OBO-006, Orden_Batalla_OBO!A129:J130〕','〔BOR-GEN-001, p. 18〕'] },
+
+{ id:'pt-labuan', cap:'puerto-mayor', nombre:'Labuan · terminal tanquero y GNL', alias:'Territorio Federal de Labuan',
+  ll:[5.2767,115.2417], bando:'PACTEAK', proteccion:'NSL',
+  rel:'Isla-zona franca con la mayor capacidad de recepción de crudo/GNL del teatro. Muelles pequeños pero boya capaz de VLCC; nodo energético y aeródromo militar contiguo.',
+  datos:[['Boya','320.000 dwt / 290 m / 22 m calado'],['Pantalanes','40.000 dwt / 230 m / 9 m'],['Régimen','zona de libre comercio']],
+  fuentes:['〔BOR-GEN-002, p. 22〕'] },
+
+{ id:'pt-balikpapan', cap:'puerto-mayor', nombre:'Puerto de Balikpapan', alias:'Kalimantan Oriental',
+  ll:[-1.2379,116.8529], bando:'OBO', proteccion:'OBJETIVO', hex:'REG-100/J12',
+  rel:'Puerto de entrada habitual de Kalimantan Oriental e instalación naval. Base de la 4.ª División de Infantería, de la 3.ª Escuadrilla de Caza Su-30MK2 y de un batallón SA-20B. NAI 2 del JIPOE PACTEAK.',
+  datos:[['Puestos comerciales','10'],['Profundidad','12 m'],['Porte máximo','35.000 dwt'],['Aeropuerto','20 km'],['Guarnición','4 ID · 2 Air Def Bde 1 BN · 3 Strike Fighter Sq']],
+  fuentes:['〔BOR-GEN-002, p. 19〕','〔BOR-OBO-006, Orden_Batalla_OBO!A97:J127〕','〔BOR-PAC-003, p. 19 · NAI Balikpapan〕'] },
+
+{ id:'pt-pontianak', cap:'puerto-mayor', nombre:'Puerto y base naval de Pontianak', alias:'Kalimantan Occidental',
+  ll:[-0.0263,109.3425], bando:'OBO', proteccion:'OBJETIVO', hex:'REG-100/E11',
+  rel:'Base principal de la KRN en el oeste y punto de embarque de fuerzas terrestres en buques anfibios y ferris. Concentra 13 Assault TRANSRON, la 1.ª Escuadrilla de Caza y el AEW&C KJ-2000 occidental. NAI 9 del JIPOE PACTEAK.',
+  datos:[['Fondeadero','10 m en la boca del río'],['Puerto comercial','30 km río arriba'],['Muelles','4 · 9 m calado · 12.000 dwt'],['Función','carga de fuerzas en anfibios y ferris'],['Guarnición','LST/LSM · Su-30MK2 · KJ-2000 · SA-20B']],
+  fuentes:['〔BOR-GEN-002, p. 19〕','〔BOR-OBO-006, Orden_Batalla_OBO!A4:J121〕','〔BOR-PAC-003, p. 19 · NAI Pontianak〕'] },
+
+{ id:'pt-banjarmasin', cap:'puerto-mayor', nombre:'Puerto de Banjarmasin', alias:'Capital · Alto Mando de las Fuerzas Armadas',
+  ll:[-3.3186,114.5944], bando:'OBO', proteccion:'OBJETIVO', hex:'REG-100/I13',
+  rel:'Capital de la República de Kalimantan y sede del Alto Mando conjunto. Reserva estratégica (5.ª División, 7.ª Brigada Aerotransportada), tres batallones SA-20B, la defensa costera CM-302 y la 1.ª Brigada de Fuerzas Aeroespaciales con DF-21C/D. Tránsito marítimo evaluado en más de 48 horas hacia Kuching o Sandakan. NAI 1 del JIPOE PACTEAK.',
+  datos:[['Fondeadero','14 m cerca de la boca del Barito'],['Puerto','32 km río arriba'],['Muelles','2 × 350 m · 8.000 dwt · 6 m'],['Terminal petrolero','muelle de 30 m'],['Tránsito a Kuching/Sandakan','> 48 h']],
+  fuentes:['〔BOR-GEN-002, pp. 15, 19〕','〔BOR-OBO-003, p. 8〕','〔BOR-OBO-006, Orden_Batalla_OBO!A131:J141〕'] },
+
+/* ········· B · PUERTOS DE CABOTAJE Y TERMINALES LITORALES ················ */
+{ id:'pt-sibu', cap:'puerto-menor', nombre:'Sibu · nodo fluvial del Rejang', alias:'Sarawak central',
+  ll:[2.2870,111.8309], bando:'PACTEAK', proteccion:'RTL', hex:'TAC-10/DF-110',
+  rel:'Centro urbano y nodo de transporte fluvial identificado como terreno clave por ambos JIPOE. Los cruces del Jambatan Lanang y Durin, inmediatos a la ciudad, controlan el eje Trans-Borneo.',
+  datos:[['Ríos navegables','55 · 1.782 NM combinados'],['Río Rejang','313 NM · el más largo de Malasia'],['Tráfico','300-500 embarcaciones/día'],['MOG C-130','2 · 16 salidas/día']],
+  fuentes:['〔BOR-GEN-002, p. 21〕','〔BOR-OBO-003, pp. 9-10〕','〔BOR-PAC-003, pp. 7-8〕'] },
+
+{ id:'pt-miri', cap:'puerto-menor', nombre:'Miri · rada y terminal de combustible', alias:'Sarawak septentrional',
+  ll:[4.3947,113.9877], bando:'PACTEAK', proteccion:'RTL',
+  rel:'Rada abierta sin puerto abrigado; su valor es la carga de combustible por boyas. NAI 3 del JIPOE OBO (desembarco anfibio D+8–D+15) y objetivo de la entrada anfibia del COA más peligroso evaluado por PACTEAK.',
+  datos:[['Fondeadero','2 NM mar adentro'],['Gabarras','180 t'],['Boyas de combustible','3 · 175.000 dwt · 17 m'],['Muelle','150 m + atracadero de 255 m'],['MOG C-130','2 · 16 salidas/día']],
+  fuentes:['〔BOR-GEN-002, p. 21〕','〔BOR-OBO-003, p. 19 · NAI 3〕','〔BOR-PAC-003, p. 17 · MDCOA〕'] },
+
+{ id:'pt-kudat', cap:'puerto-menor', nombre:'Kudat', alias:'Sabah septentrional',
+  ll:[6.8833,116.8333], bando:'PACTEAK', proteccion:'RTL',
+  rel:'Extremo norte de Sabah. NAI 2 del JIPOE OBO: desembarco anfibio de la coalición entre D+8 y D+15; el COA más probable le asigna además un grupo de apoyo para su defensa.',
+  datos:[['Función','puerto litoral y acceso al extremo norte'],['Ventana NAI','D+8 a D+15']],
+  fuentes:['〔BOR-OBO-003, pp. 16, 19〕'] },
+
+{ id:'pt-tawau', cap:'puerto-menor', nombre:'Puerto de Tawau', alias:'Sabah suroriental',
+  ll:[4.2448,117.8912], bando:'PACTEAK', proteccion:'RTL',
+  rel:'Puerto del sureste de Sabah sobre el mar de Célebes, conectado por la carretera nueva Sandakan–Lahad Datu–Tawau–Semporna. Próximo a la frontera terrestre con Kalimantan.',
+  datos:[['Puestos','6'],['Porte máximo','20.000 dwt'],['Calado','9 m'],['Fondeadero','hasta 14 m'],['Capacidad','RORO y contenedores'],['MOG C-130','2 · 16 salidas/día']],
+  fuentes:['〔BOR-GEN-002, pp. 21-22〕'] },
+
+{ id:'pt-lahad', cap:'puerto-menor', nombre:'Lahad Datu', alias:'Sabah oriental',
+  ll:[5.0264,118.3269], bando:'PACTEAK', proteccion:'RTL',
+  rel:'Único punto en que coinciden las dos listas de minado evaluado (OBO y PACTEAK). Ninguna fuente aporta fecha, extensión ni responsable del minado.',
+  datos:[['Minado evaluado','coincidencia OBO–PACTEAK'],['MOG C-130','2 · 16 salidas/día']],
+  fuentes:['〔BOR-OBO-003, p. 8〕','〔BOR-PAC-003, p. 6〕'] },
+
+{ id:'pt-seria', cap:'puerto-menor', nombre:'Seria · fondeadero tanquero', alias:'Brunéi Darussalam',
+  ll:[4.6100,114.3300], bando:'PACTEAK', proteccion:'NSL',
+  rel:'Fondeadero tanquero principal de Brunéi, base de la riqueza del reino. NAI 1 del JIPOE OBO: presencia naval persistente de la coalición sobre la infraestructura petrolera bruneana desde el Día D.',
+  datos:[['Profundidad','31 m'],['Boyas de crudo','2 · a 5 NM de la costa'],['Buque máximo','320.000 dwt · 17 m calado']],
+  fuentes:['〔BOR-GEN-002, p. 20〕','〔BOR-OBO-003, p. 19 · NAI 1〕'] },
+
+{ id:'pt-belait', cap:'puerto-menor', nombre:'Kuala Belait', alias:'Kuala Beliat · Brunéi',
+  ll:[4.5833,114.1917], bando:'PACTEAK', proteccion:'NSL',
+  rel:'Terminal operada principalmente por Shell; capacidad muy limitada por eslora y calado. Punto de contacto de la Pan-Borneo entre Sarawak y Brunéi.',
+  datos:[['Eslora máxima','63 m'],['Calado máximo','7 m'],['Operador','Shell Petroleum']],
+  fuentes:['〔BOR-GEN-002, p. 20〕'] },
+
+{ id:'pt-samarinda', cap:'puerto-menor', nombre:'Samarinda', alias:'río Kutai · Kalimantan Oriental',
+  ll:[-0.5017,117.1536], bando:'OBO', proteccion:'OBJETIVO',
+  rel:'Puerto fluvial a 60 km de la desembocadura; base del ala de transporte oriental (Y-8C, Y-7H, Z-8A) y de la 3.ª Escuadrilla de Ataque JH-7.',
+  datos:[['Muelles','3 · 550 m / 110 m / 100 m'],['Dragado','6 m'],['Distancia río arriba','60 km']],
+  fuentes:['〔BOR-GEN-002, p. 20〕','〔BOR-OBO-006, Orden_Batalla_OBO!A101:J104〕'] },
+
+{ id:'pt-singkawang', cap:'puerto-menor', nombre:'Singkawang', alias:'Sinkawang · Kalimantan Occidental',
+  ll:[0.9061,108.9847], bando:'OBO', proteccion:'ND',
+  rel:'Capacidad portuaria marginal: los buques grandes deben fondear a 2-3 NM y solo entran embarcaciones de 3 m de calado. No sostiene descarga de fuerzas.',
+  datos:[['Fondeadero','2-3 NM mar adentro'],['Calado en puerto','3 m · solo embarcaciones menores']],
+  fuentes:['〔BOR-GEN-002, p. 20〕'] },
+
+{ id:'pt-tarakan', cap:'puerto-menor', nombre:'Tarakan', alias:'puerto insular · Kalimantan Norte',
+  ll:[3.3000,117.6333], bando:'OBO', proteccion:'OBJETIVO',
+  rel:'Puerto insular con buena capacidad relativa y aeropuerto a 3 km. Base de la 4.ª Escuadrilla de Caza J-10A, de la 4.ª de Ataque FBC-1 y de un batallón SA-20B.',
+  datos:[['Muelles','5'],['Eslora máxima','250 m'],['Profundidad','9 m'],['Aeropuerto','3 km'],['Guarnición','2 Air Def Bde 2 BN · J-10A · FBC-1']],
+  fuentes:['〔BOR-GEN-002, p. 20〕','〔BOR-OBO-006, Orden_Batalla_OBO!A105:J128〕'] },
+
+{ id:'pt-ketapang', cap:'puerto-menor', nombre:'Ketapang', alias:'base OOB «Ketapang-Iskandar»',
+  ll:[-1.8333,109.9667], bando:'OBO', proteccion:'OBJETIVO',
+  rel:'Nodo del suroeste de Kalimantan. El OOB lo registra como «Ketapang-Iskandar», rótulo compuesto que no corresponde a una única localidad; alberga la 1.ª Escuadrilla de Ataque JH-7, la 1.ª de Patrulla Costera Z-8 y un batallón SA-20B.',
+  datos:[['Guarnición','1 Air Def Bde 2 BN · 1 Attack Sq JH-7 · 1 Coastal Patrol Sq'],['Rótulo del OOB','«Ketapang-Iskandar» (compuesto, sin resolver)']],
+  fuentes:['〔BOR-OBO-006, Orden_Batalla_OBO!A95:J122〕','〔BOR-OWS-008, mapa regional · ficha Iskandar en F13〕'],
+  alerta:'El rótulo «Ketapang-Iskandar» agrupa dos topónimos distantes. La posición mostrada usa Ketapang; Iskandar (Pangkalan Bun) queda ~200 km al este. Resolver antes de calcular alcance o tiempo de vuelo.' },
+
+/* ········· C · AERÓDROMOS (APOD) ········································· */
+{ id:'af-kuching', cap:'aerodromo', nombre:'Aeropuerto Internacional de Kuching', alias:'WBGG · clase A',
+  ll:[1.4847,110.3467], bando:'OBO', proteccion:'RTL', hex:'TAC-10/CX-115',
+  rel:'Hub principal de entrada de Sarawak, capaz de operar hasta C-5. Bajo control de Kalimantan: aloja la 2.ª Escuadrilla de Caza J-10A, la 2.ª de Ataque BZK-005 y la 2.ª de Patrulla Costera Z-8.',
+  datos:[['Aeronave máxima','C-5 Galaxy'],['Puertas','10'],['Distancia a la ciudad','11 km al sur'],['MOG estratégico','2'],['MOG C-130','10 · 64 salidas/día'],['MOG caza','40 · 120 salidas/día'],['Clase de pista (brief)','A · > 10.000 ft']],
+  fuentes:['〔BOR-GEN-002, p. 22〕','〔BOR-GEN-002, p. B-2 · Figura 15〕','〔BOR-OBO-006, Orden_Batalla_OBO!A92:J94〕'] },
+
+{ id:'af-kk', cap:'aerodromo', nombre:'Aeropuerto Internacional de Kota Kinabalu', alias:'WBKK · clase A',
+  ll:[5.9372,116.0511], bando:'PACTEAK', proteccion:'RTL',
+  rel:'Principal aeródromo de Sabah; el caso indica que puede operar todas las aeronaves militares. Es el APOD de mayor rendimiento en Borneo oriental y sostiene la defensa aliada del norte.',
+  datos:[['Capacidad','todas las aeronaves militares'],['MOG estratégico','8 · 40 salidas/día'],['MOG C-130','16 · 128 salidas/día'],['MOG caza','60 · 180 salidas/día'],['Clase de pista (brief)','A · > 10.000 ft']],
+  fuentes:['〔BOR-GEN-002, pp. 22, B-2〕'] },
+
+{ id:'af-brunei', cap:'aerodromo', nombre:'Aeropuerto Internacional de Brunéi', alias:'WBSB · clase A',
+  ll:[4.9442,114.9283], bando:'PACTEAK', proteccion:'NSL',
+  rel:'Dos pistas y hub mayor de mantenimiento de aeronaves; capaz de C-5. Punto de partida del esfuerzo terrestre estadounidense en el COA más peligroso evaluado por OBO y NAI 5 (más de 3 BCT desde D+4).',
+  datos:[['Pistas','2'],['Aeronave máxima','C-5 Galaxy'],['Función adicional','hub mayor de mantenimiento'],['MOG estratégico','8 · 40 salidas/día'],['MOG C-130','16 · 128 salidas/día'],['MOG caza','60 · 180 salidas/día']],
+  fuentes:['〔BOR-GEN-002, pp. 20, B-2〕','〔BOR-OBO-003, pp. 17, 19〕'] },
+
+{ id:'af-balikpapan', cap:'aerodromo', nombre:'Balikpapan · Sepinggan', alias:'WALL · clase A',
+  ll:[-1.2683,116.8947], bando:'OBO', proteccion:'OBJETIVO',
+  rel:'Aeropuerto internacional de Kalimantan capaz de operar aeronaves tipo DC-10. Base de la 3.ª Escuadrilla de Caza Su-30MK2 y de medios de patrulla marítima Y-8Q y J-15.',
+  datos:[['Aeronave máxima','tipo DC-10'],['Guarnición','Su-30MK2 ×12 · Y-8Q ×4 · J-15 ×10 · BZK-005 ×2'],['Clase de pista (brief)','A · > 10.000 ft']],
+  fuentes:['〔BOR-GEN-002, p. 20〕','〔BOR-OBO-006, Orden_Batalla_OBO!A97:J100〕'] },
+
+{ id:'af-banjarmasin', cap:'aerodromo', nombre:'Banjarmasin · Syamsudin Noor', alias:'WAOO · clase A',
+  ll:[-3.4424,114.7628], bando:'OBO', proteccion:'OBJETIVO',
+  rel:'Aeródromo de la capital y del Alto Mando. Concentra la 5.ª Escuadrilla de Caza J-20, la 1.ª de Bombardeo H-6K, el segundo AEW&C KJ-2000 y el ala de transporte del Alto Mando.',
+  datos:[['Aeronave máxima','tipo DC-10'],['Guarnición','J-20 ×22 · H-6K ×6 · KJ-2000 ×3 · FBC-1 ×10 · Y-8G ×2'],['Clase de pista (brief)','A · > 10.000 ft']],
+  fuentes:['〔BOR-GEN-002, p. 20〕','〔BOR-OBO-006, Orden_Batalla_OBO!A108:J117〕'] },
+
+{ id:'af-supadio', cap:'aerodromo', nombre:'Pontianak · Base Aérea Supadio', alias:'WIOO · clase B',
+  ll:[-0.1507,109.4039], bando:'OBO', proteccion:'OBJETIVO',
+  rel:'Aeródromo internacional del Distrito Militar Occidental. Base de la 1.ª Escuadrilla de Caza Su-30MK2, de la patrulla marítima Y-8Q/FBC-1, del AEW&C KJ-2000 occidental y de la 2.ª de Ataque Electrónico Y-8G.',
+  datos:[['Aeronave máxima','tipo DC-10'],['Guarnición','Su-30MK2 ×12 · Y-8Q ×8 · KJ-2000 ×3 · FBC-1 ×4 · Y-8G ×2'],['Clase de pista (brief)','B · 7.500-10.000 ft']],
+  fuentes:['〔BOR-GEN-002, p. 20〕','〔BOR-OBO-006, Orden_Batalla_OBO!A83:J88〕'] },
+
+{ id:'af-labuan', cap:'aerodromo', nombre:'Base Aérea de Labuan', alias:'WBKL · RMAF',
+  ll:[5.3007,115.2500], bando:'PACTEAK', proteccion:'RTL',
+  rel:'Base de la Real Fuerza Aérea Malasia en la isla franca de Labuan. El caso la clasifica como aeródromo secundario, con rendimiento muy inferior al que sugiere su condición de base aérea.',
+  datos:[['Aeronave máxima','B737 / C-130'],['MOG estratégico','0'],['MOG C-130','2 · 16 salidas/día'],['MOG caza','0']],
+  fuentes:['〔BOR-GEN-002, pp. 22, B-2〕'],
+  alerta:'El brief la sitúa en clase A (> 10.000 ft). El caso la lista como aeródromo secundario, con MOG estratégico y de caza en cero. Prevalece la clasificación del caso para cualquier cálculo de flujo.' },
+
+{ id:'af-miri', cap:'aerodromo', nombre:'Aeropuerto de Miri', alias:'WBGR · clase B',
+  ll:[4.3220,113.9869], bando:'PACTEAK', proteccion:'RTL',
+  rel:'Aeropuerto regional con rampa limitada a cuatro aeronaves de transporte. Asociado al NAI 3 (desembarco anfibio) y al objetivo anfibio del COA más peligroso evaluado por PACTEAK.',
+  datos:[['Aeronave máxima','B737'],['Rampa','4 aeronaves de transporte'],['MOG C-130','2 · 16 salidas/día'],['Clase de pista (brief)','B · 7.500-10.000 ft']],
+  fuentes:['〔BOR-GEN-002, pp. 22, B-2〕','〔BOR-OBO-003, p. 19〕'] },
+
+{ id:'af-bintulu', cap:'aerodromo', nombre:'Aeropuerto de Bintulu', alias:'WBGB · clase B',
+  ll:[3.1229,113.0200], bando:'PACTEAK', proteccion:'RTL', hex:'TAC-10/DL-104',
+  rel:'Aeródromo contiguo al complejo de GNL y al puerto federal. El JIPOE OBO evalúa que el control de los cruces del Rejang niega el acceso a los puertos marítimo y aéreo de Bintulu.',
+  datos:[['Aeronave máxima','B737'],['Rampa','4 aeronaves de transporte'],['MOG C-130','2 · 16 salidas/día'],['Clase de pista (brief)','B · 7.500-10.000 ft']],
+  fuentes:['〔BOR-GEN-002, pp. 22, B-2〕','〔BOR-OBO-003, p. 10〕'] },
+
+{ id:'af-sibu', cap:'aerodromo', nombre:'Aeropuerto de Sibu', alias:'WBGS · pista táctica',
+  ll:[2.2616,111.9853], bando:'PACTEAK', proteccion:'RTL',
+  rel:'Aeródromo regional del Sarawak central, inmediato a los cruces del Rejang. Rendimiento marginal para sostener una fuerza en operaciones.',
+  datos:[['Aeronave máxima','B737'],['MOG C-130','2 · 16 salidas/día'],['Clase de pista (brief)','Táctica · 6.000-7.500 ft']],
+  fuentes:['〔BOR-GEN-002, pp. 22, B-2〕'] },
+
+{ id:'af-sandakan', cap:'aerodromo', nombre:'Aeropuerto de Sandakan', alias:'WBKS · clase B',
+  ll:[5.9006,118.0594], bando:'OBO', proteccion:'RTL',
+  rel:'Aeródromo del enclave de Kalimantan en Sabah oriental. No figura en la tabla de MOG regional del caso, que solo lista aeródromos bajo control aliado.',
+  datos:[['Aeronave máxima','B737 / C-130 (clase regional)'],['MOG en el caso','no listado'],['Guarnición','3 Coastal Patrol Sq Z-10 ×6'],['Clase de pista (brief)','B · 7.500-10.000 ft']],
+  fuentes:['〔BOR-GEN-002, p. 22〕','〔BOR-OBO-006, Orden_Batalla_OBO!A118:J118〕'] },
+
+{ id:'af-tawau', cap:'aerodromo', nombre:'Aeropuerto de Tawau', alias:'WBKW · pista táctica',
+  ll:[4.3202,118.1277], bando:'PACTEAK', proteccion:'RTL',
+  rel:'Aeródromo regional del sureste de Sabah; punto de dispersión posible para transporte intrateatro.',
+  datos:[['Aeronave máxima','B737 / C-130'],['MOG C-130','2 · 16 salidas/día']],
+  fuentes:['〔BOR-GEN-002, pp. 22, B-2〕'] },
+
+{ id:'af-lahad', cap:'aerodromo', nombre:'Aeropuerto de Lahad Datu', alias:'WBKD · pista táctica',
+  ll:[5.0323,118.3242], bando:'PACTEAK', proteccion:'RTL',
+  rel:'Aeródromo del este de Sabah, sobre la carretera nueva Sandakan–Lahad Datu–Tawau. Inmediato al único minado evaluado coincidente entre ambos JIPOE.',
+  datos:[['Aeronave máxima','B737 / C-130'],['MOG C-130','2 · 16 salidas/día']],
+  fuentes:['〔BOR-GEN-002, pp. 22, B-2〕'] },
+
+{ id:'af-juwata', cap:'aerodromo', nombre:'Tarakan · Juwata', alias:'WAQQ · pista táctica',
+  ll:[3.3268,117.5656], bando:'OBO', proteccion:'OBJETIVO',
+  rel:'Aeródromo insular a 3 km del puerto; base de la 4.ª Escuadrilla de Caza J-10A y de la 4.ª de Ataque FBC-1.',
+  datos:[['Aeronave máxima','B737'],['Guarnición','J-10A ×12 · FBC-1 ×10 · Z-8A ×6'],['Clase de pista (brief)','Táctica · 6.000-7.500 ft']],
+  fuentes:['〔BOR-GEN-002, p. 20〕','〔BOR-OBO-006, Orden_Batalla_OBO!A105:J107〕'] },
+
+{ id:'af-samarinda', cap:'aerodromo', nombre:'Samarinda · APT Pranoto', alias:'WALS · pista táctica',
+  ll:[-0.3743,117.2557], bando:'OBO', proteccion:'OBJETIVO',
+  rel:'Base del ala de transporte del Distrito Militar Oriental: Y-8C, Y-7H y Z-8A. Nodo de sostenimiento aéreo del frente norte.',
+  datos:[['Aeronave máxima','B737'],['Guarnición','Y-8C ×8 · Y-7H ×20 · Z-8A ×24 · JH-7 ×10']],
+  fuentes:['〔BOR-GEN-002, p. 20〕','〔BOR-OBO-006, Orden_Batalla_OBO!A101:J104〕'] },
+
+/* ········· D · APOD REGIONALES FUERA DE BORNEO (flujo de la coalición) ···· */
+{ id:'af-clark', cap:'apod-regional', nombre:'Clark Air Base · Luzón', alias:'Filipinas',
+  ll:[15.1859,120.5600], bando:'PACTEAK', proteccion:'ND',
+  rel:'APOD primario del arco filipino. NAI 7 del JIPOE OBO: lanzamiento de bombarderos y cazas de la coalición desde el Día D.',
+  datos:[['MOG estratégico','8 · 40 salidas/día'],['MOG C-130','16 · 128 salidas/día'],['MOG caza','no listado']],
+  fuentes:['〔BOR-GEN-002, p. B-2〕','〔BOR-OBO-003, p. 19 · NAI 7〕'] },
+
+{ id:'af-princesa', cap:'apod-regional', nombre:'Puerto Princesa · Palawan', alias:'Filipinas',
+  ll:[9.7421,118.7590], bando:'PACTEAK', proteccion:'ND',
+  rel:'APOD filipino más próximo a Borneo, sobre el eje del estrecho de Balabac.',
+  datos:[['MOG estratégico','6 · 24 salidas/día'],['MOG C-130','12 · 100 salidas/día']],
+  fuentes:['〔BOR-GEN-002, p. B-2〕'] },
+
+{ id:'af-payalebar', cap:'apod-regional', nombre:'Paya Lebar', alias:'Singapur',
+  ll:[1.3603,103.9106], bando:'PACTEAK', proteccion:'ND',
+  rel:'APOD singapurense de alto rendimiento. NAI 7 del JIPOE OBO junto con las bases filipinas; Singapur ofrece apoyo aéreo temporal para defensa de HVAA.',
+  datos:[['MOG estratégico','8 · 40 salidas/día'],['MOG C-130','16 · 128 salidas/día'],['MOG caza','60 · 180 salidas/día']],
+  fuentes:['〔BOR-GEN-002, p. B-2〕','〔BOR-OBO-003, p. 19〕'] },
+
+{ id:'af-butterworth', cap:'apod-regional', nombre:'Butterworth', alias:'Malasia peninsular',
+  ll:[5.4659,100.3913], bando:'PACTEAK', proteccion:'ND',
+  rel:'Base aérea malasia en la península. Posición declarada de parte del apoyo de LOGGRU WESTPAC en la organización de tarea de PACTEAK.',
+  datos:[['MOG estratégico','0'],['MOG C-130','3 · 24 salidas/día'],['MOG caza','60 · 120 salidas/día']],
+  fuentes:['〔BOR-GEN-002, p. B-2〕','〔BOR-PAC-001, p. 3〕'] },
+
+{ id:'af-klia', cap:'apod-regional', nombre:'Kuala Lumpur Internacional', alias:'Malasia peninsular',
+  ll:[2.7456,101.7099], bando:'PACTEAK', proteccion:'ND',
+  rel:'Principal APOD de Malasia peninsular; origen del movimiento de refuerzos malasios hacia Borneo, que el caso condiciona a transporte estadounidense.',
+  datos:[['MOG estratégico','8 · 40 salidas/día'],['MOG C-130','16 · 128 salidas/día'],['MOG caza','80 · 180 salidas/día']],
+  fuentes:['〔BOR-GEN-002, p. B-2〕','〔BOR-GEN-001, pp. 14, 18〕'] },
+
+{ id:'af-darwin', cap:'apod-regional', nombre:'Darwin Internacional', alias:'Australia',
+  ll:[-12.4147,130.8767], bando:'PACTEAK', proteccion:'ND',
+  rel:'APOD austral de mayor rendimiento del listado regional; base de partida del aporte australiano.',
+  datos:[['MOG estratégico','8 · 40 salidas/día'],['MOG C-130','16 · 128 salidas/día'],['MOG caza','80 · 180 salidas/día']],
+  fuentes:['〔BOR-GEN-002, p. B-2〕'] },
+
+/* ········· E · INFRAESTRUCTURA ENERGÉTICA ································ */
+{ id:'en-bintulu-lng', cap:'energia', nombre:'Complejo de licuefacción de Bintulu', alias:'MLNG · Tanjung Kidurong',
+  ll:[3.2350,113.0400], bando:'PACTEAK', proteccion:'NSL',
+  rel:'Nodo crítico de gas natural licuado. El caso lo registra como el primer puerto de GNL de Malasia. Su destrucción tendría efecto estratégico desproporcionado y económico global: candidato natural a la lista de no-ataque.',
+  datos:[['Función','licuefacción y exportación de GNL'],['Puerto asociado','Bintulu · canal 15 m'],['Categoría propuesta','NSL — no-strike list']],
+  fuentes:['〔BOR-GEN-002, p. 21〕','〔BOR-OBO-003, p. 8 · infraestructura costera y costa afuera〕'],
+  alerta:'El estado NSL es una propuesta de trabajo. Ninguna fuente del expediente contiene una no-strike list aprobada; las ROE del escenario siguen pendientes de autorización.' },
+
+{ id:'en-lutong', cap:'energia', nombre:'Refinería y terminal de Lutong · Miri', alias:'Sarawak',
+  ll:[4.4450,114.0083], bando:'PACTEAK', proteccion:'NSL',
+  rel:'Nodo de refino y exportación del norte de Sarawak, asociado a las boyas de carga de Miri. Dentro del área del NAI 3 y del objetivo anfibio del COA más peligroso de PACTEAK.',
+  datos:[['Función','refino y carga de crudo'],['Boyas asociadas','3 · 175.000 dwt · 17 m']],
+  fuentes:['〔BOR-GEN-002, p. 21〕'] },
+
+{ id:'en-seria-field', cap:'energia', nombre:'Campo petrolero de Seria', alias:'Brunéi Darussalam',
+  ll:[4.6167,114.3200], bando:'PACTEAK', proteccion:'NSL',
+  rel:'Base de la riqueza de Brunéi, con reservas que el caso estima agotadas antes de 2050. La misión de JTF PACTEAK incluye expresamente asegurar la infraestructura petrolera malasia y bruneana.',
+  datos:[['Función','extracción costa afuera y costera'],['Horizonte de reservas','antes de 2050 (caso)'],['Relación con la misión','tarea explícita de PACTEAK']],
+  fuentes:['〔BOR-GEN-002, p. 20〕','〔BOR-PAC-001, p. 5〕'] },
+
+{ id:'en-lumut', cap:'energia', nombre:'Terminal de GNL de Lumut', alias:'Brunéi Darussalam',
+  ll:[4.6603,114.4194], bando:'PACTEAK', proteccion:'NSL',
+  rel:'Terminal principal de GNL de Brunéi. Pantalán de 2,4 millas con fondeaderos profundos; nodo energético del área que el NAI 1 vigila desde el Día D.',
+  datos:[['Pantalán','2,4 millas'],['Fondeaderos','hasta 25 m'],['Atracadero lateral','110 m / 11 m calado']],
+  fuentes:['〔BOR-GEN-002, p. 20〕','〔BOR-OBO-003, p. 19 · NAI 1〕'] },
+
+{ id:'en-balikpapan-ref', cap:'energia', nombre:'Refinería de Balikpapan', alias:'Kalimantan Oriental',
+  ll:[-1.2708,116.8181], bando:'OBO', proteccion:'OBJETIVO',
+  rel:'Principal capacidad de refino de Kalimantan, contigua al puerto y a la base aérea. Aparece en el NAI 2 del JIPOE PACTEAK y en la lógica de captura y explotación energética del enfoque OBO.',
+  datos:[['Función','refino'],['Nodo contiguo','puerto y APOD de Balikpapan']],
+  fuentes:['〔BOR-GEN-002, p. 19〕','〔BOR-PAC-003, p. 19〕','〔BOR-OBO-009, pp. 5-10〕'] },
+
+{ id:'en-tarakan-ref', cap:'energia', nombre:'Instalaciones petroleras de Tarakan', alias:'Kalimantan Norte',
+  ll:[3.2833,117.5833], bando:'OBO', proteccion:'OBJETIVO',
+  rel:'Producción y almacenamiento sobre la isla-puerto de Tarakan, en el eje marítimo del mar de Célebes.',
+  datos:[['Función','extracción y almacenamiento']],
+  fuentes:['〔BOR-GEN-002, p. 20〕'],
+  derivado:true },
+
+{ id:'en-luconia', cap:'energia', nombre:'Provincia gasífera de Luconia · bloques SK', alias:'Beting Patinggi Ali · mar de China Meridional',
+  ll:[4.9000,112.5000], bando:'PACTEAK', proteccion:'NSL',
+  rel:'Campos costa afuera frente a Sarawak que alimentan el complejo de Bintulu. El caso los cubre de forma genérica como «infraestructura de petróleo y gas costa afuera y costera» y sitúa la disputa de las Spratly al norte como contencioso abierto.',
+  datos:[['Naturaleza','campos y plataformas costa afuera'],['Alimenta','complejo GNL de Bintulu'],['Contexto','reclamaciones en el mar de China Meridional']],
+  fuentes:['〔BOR-OBO-003, p. 8〕','〔BOR-GEN-002, p. 18〕'],
+  derivado:true,
+  alerta:'La posición y los nombres de bloque son referencia geográfica externa. El expediente no individualiza bloques SK ni plataformas; no usar para targeting ni para delimitar áreas de protección.' },
+
+/* ········· F · MANDO Y DISPOSITIVO TERRESTRE (OOB) ······················· */
+{ id:'hq-banjarmasin', cap:'mando', nombre:'Alto Mando de las Fuerzas Armadas de Kalimantan', alias:'HQKGS · KALGENSTAFF',
+  ll:[-3.3300,114.5800], bando:'OBO', proteccion:'OBJETIVO',
+  rel:'Mando conjunto de nivel superior; conserva COCOM sobre JTF OBO y control directo de la reserva estratégica. El control operacional desciende a dos distritos militares separados por el meridiano 114°E.',
+  datos:[['Reserva estratégica','5 ID · 7 Bde Aerotransportada'],['Fuerzas aeroespaciales','1 Aerospace Bde · DF-21C/D'],['División de distritos','meridiano 114°E']],
+  fuentes:['〔BOR-GEN-002, pp. 15-16〕','〔BOR-OBO-001, pp. 5-6, 8〕','〔BOR-OBO-006, Orden_Batalla_OBO!A131:J141〕'] },
+
+{ id:'gr-1id', cap:'dispositivo', nombre:'1.ª División de Infantería (Motorizada) · AKR', alias:'1 ID(M) · Distrito Militar Occidental',
+  ll:[1.5200,110.3400], bando:'OBO', proteccion:'OBJETIVO',
+  rel:'Formación de primer escalón en Kuching. Sufrió bajas y alto consumo de artillería antes de alcanzar Simanggang; se encuentra en pausa operacional regenerando poder de combate.',
+  datos:[['Ubicación OOB','Kuching'],['Estado','regeneración · pausa operacional'],['Ventana estimada','≈30 días para reanudar ofensiva']],
+  fuentes:['〔BOR-OBO-006, Orden_Batalla_OBO!A119:J119〕','〔BOR-GEN-002, pp. 10, 20〕','〔BOR-OBO-003, p. 6〕'] },
+
+{ id:'gr-2id', cap:'dispositivo', nombre:'2.ª División de Infantería · AKR', alias:'2 ID · Simanggang',
+  ll:[1.2372,111.4624], bando:'OBO', proteccion:'OBJETIVO',
+  rel:'Límite de avance del frente sur. El JIPOE PACTEAK identifica el puesto de mando de la 2 ID como el único conjunto de blancos vinculado expresamente con el COG adversario.',
+  datos:[['Ubicación OOB','Sri Aman (Simanggang)'],['Estado','regeneración'],['Relación con el COG','PC de 2 ID vinculado al COG de PACTEAK']],
+  fuentes:['〔BOR-OBO-006, Orden_Batalla_OBO!A120:J120〕','〔BOR-PAC-003, pp. 10, 19〕'] },
+
+{ id:'gr-3id', cap:'dispositivo', nombre:'3.ª División de Infantería · AKR', alias:'3 ID · Sabah (Sandakan–Telupid)',
+  ll:[5.7000,117.6000], bando:'OBO', proteccion:'OBJETIVO',
+  rel:'Formación del frente norte, desplegada entre Sandakan y Telupid. En el COA más probable evaluado por PACTEAK bloquea Kota Kinabalu; el control inglés precisa que fija fuerzas malasias en el frente norte.',
+  datos:[['Ubicación OOB','Sabah'],['Dispositivo evaluado','Sandakan–Telupid'],['Tarea en el MLCOA','bloquear Kota Kinabalu']],
+  fuentes:['〔BOR-OBO-006, Orden_Batalla_OBO!A125:J125〕','〔BOR-PAC-003, pp. 10, 16-17〕'] },
+
+{ id:'gr-13bde', cap:'dispositivo', nombre:'13.ª Brigada malasia y batallón bruneano', alias:'Defensa aliada de Kota Kinabalu',
+  ll:[5.9600,116.1100], bando:'PACTEAK', proteccion:'ND',
+  rel:'Dispositivo defensivo aliado que el JIPOE OBO mantiene en Kota Kinabalu. Corrige a BOR-OBO-009, que presentaba la ciudad bajo control de Kalimantan: la wiki no integra ese control como hecho.',
+  datos:[['Composición evaluada','13.ª Bde malasia + 1 bn bruneano'],['Confianza','media · coherente con caso y WARNORD PACTEAK']],
+  fuentes:['〔BOR-OBO-003, pp. 3, 16-17〕'],
+  alerta:'Discrepancia registrada: BOR-OBO-009 y BOR-OBO-004 sitúan Kota Kinabalu bajo control de Kalimantan. La cuestión de control territorial permanece abierta.' }
+
+];
+
+/* ---- 1.4 Redes de movilidad ---------------------------------------------- */
+
+/* Carretera Pan-Borneo / Trans-Borneo · troncal costera continua ----------- */
+const VIA_TRONCAL = [
+  { id:'via-kal-oeste', nombre:'Jalan Lintas Kalimantan · Banjarmasin–Pontianak',
+    tramo:'Kalimantan', bando:'OBO',
+    nota:'Casi totalmente pavimentada; dos carriles con capacidad declarada de 3.600 vehículos por hora y carril. Sujeta a deslizamientos con lluvias intensas. Los puentes sobre el río Kapuas siguen en construcción y el uso de ferris es esencial.',
+    linea:[[-3.3186,114.5944],[-2.9000,114.4000],[-2.4000,113.9000],[-2.0000,113.4000],
+           [-1.7000,112.8000],[-1.5000,112.2000],[-1.2000,111.6000],[-0.9000,111.0000],
+           [-0.6000,110.4000],[-0.3000,110.0000],[-0.0500,109.6000],[-0.0263,109.3425]] },
+
+  { id:'via-kal-kuching', nombre:'Trans-Borneo · Pontianak–Entikong–Kuching',
+    tramo:'Kalimantan–Sarawak', bando:'OBO',
+    nota:'Eje transfronterizo por el paso de Entikong/Tebedu. El caso registra que la red vial al sur de Kuching también recibió inversión, aumentando el comercio entre ambos Estados antes de la guerra.',
+    linea:[[-0.0263,109.3425],[0.1500,109.6000],[0.3500,109.9000],[0.6000,110.1500],
+           [0.9333,110.3167],[1.0167,110.3667],[1.1667,110.5667],[1.4000,110.4500],[1.5535,110.3593]] },
+
+  { id:'via-srw-sur', nombre:'Pan-Borneo · Kuching–Sri Aman–Sibu',
+    tramo:'Sarawak meridional', bando:'DISPUTADO',
+    nota:'Eje del frente sur. Kalimantan controla desde Kuching hasta Simanggang (Sri Aman); más allá, el corredor queda en disputa. El JIPOE OBO lo evalúa como único eje terrestre de alta velocidad del teatro.',
+    linea:[[1.5535,110.3593],[1.3500,110.6500],[1.2200,110.9500],[1.2372,111.4624],
+           [1.6000,111.5500],[2.1167,111.5167],[2.2870,111.8309]] },
+
+  { id:'via-srw-norte', nombre:'Pan-Borneo · Sibu–Bintulu–Miri',
+    tramo:'Sarawak septentrional', bando:'PACTEAK',
+    nota:'Corredor que enlaza los puertos y aeródromos de Bintulu y Miri con el frente sur. Los cruces del Rejang (Jambatan Lanang y Durin) son el punto de interdicción evaluado por ambos JIPOE.',
+    linea:[[2.2870,111.8309],[2.2437,111.8337],[2.1566,112.0143],[2.4000,112.3000],
+           [2.8000,112.7000],[3.1667,113.0333],[3.6000,113.4000],[4.0000,113.7000],[4.3947,113.9877]] },
+
+  { id:'via-brn', nombre:'Pan-Borneo · Miri–Brunéi–Lawas',
+    tramo:'Brunéi', bando:'PACTEAK',
+    nota:'Carretera costera pavimentada que conecta las áreas urbanas de Brunéi con Malasia para el transporte este-oeste. El último tramo, unos 50 km al noreste, se completó en 2006.',
+    linea:[[4.3947,113.9877],[4.5833,114.1917],[4.6100,114.3300],[4.8000,114.6500],
+           [4.9031,114.9398],[4.9500,115.0600],[4.9000,115.1800],[4.8500,115.4000]] },
+
+  { id:'via-sbh-oeste', nombre:'Pan-Borneo · Lawas–Beaufort–Kota Kinabalu',
+    tramo:'Sabah occidental', bando:'PACTEAK',
+    nota:'Cierre del corredor occidental. El tramo final de unos 50 km entre el este de Brunéi y Kota Kinabalu se pavimentó en 2006 y es la única conexión terrestre continua hacia el norte.',
+    linea:[[4.8500,115.4000],[5.0833,115.5500],[5.3467,115.7433],[5.5500,115.8500],
+           [5.7333,115.9333],[5.8500,116.0000],[5.9804,116.0735]] },
+
+  { id:'via-sbh-este', nombre:'Sabah · Kota Kinabalu–Telupid–Sandakan–Lahad Datu–Tawau',
+    tramo:'Sabah oriental', bando:'DISPUTADO',
+    nota:'El caso advierte que las porciones oriental y occidental de Sabah no están conectadas por carretera pavimentada continua; solo existe un eje nuevo pavimentado que une Sandakan con Lahad Datu, Tawau y Semporna.',
+    linea:[[5.9804,116.0735],[5.9500,116.4500],[5.9000,116.8000],[5.7500,117.1000],
+           [5.6333,117.1333],[5.7500,117.6000],[5.8402,118.1179],[5.4000,118.3000],
+           [5.0264,118.3269],[4.6000,118.1000],[4.2448,117.8912]] },
+
+  { id:'via-kudat', nombre:'Sabah · ramal Kota Kinabalu–Kota Belud–Kudat',
+    tramo:'Sabah septentrional', bando:'PACTEAK',
+    nota:'Ramal hacia el extremo norte. Sostiene el NAI 2 (desembarco anfibio en Kudat entre D+8 y D+15) y la defensa del sector asignada en el COA más probable.',
+    linea:[[5.9804,116.0735],[6.1800,116.2300],[6.3500,116.4300],[6.6000,116.7000],[6.8833,116.8333]] }
+];
+
+/* Ferrocarril del Estado de Sabah ----------------------------------------- */
+const FERROCARRIL = {
+  id:'rail-sabah',
+  nombre:'Ferrocarril del Estado de Sabah · Tanjung Aru–Tenom',
+  nota:'Único corredor férreo del teatro. Enlaza el nodo portuario y aéreo de Kota Kinabalu con el interior por la garganta del río Padas entre Beaufort y Tenom, tramo sin alternativa vial equivalente. La ayuda OWS incluye una carta cibernética específica para interrumpir el ferrocarril, por lo que la línea es también una vulnerabilidad funcional.',
+  linea:[
+    [5.9333,116.0500],[5.9167,116.0700],[5.8500,116.0300],[5.7833,115.9800],
+    [5.7333,115.9333],[5.6200,115.8600],[5.5200,115.8000],[5.4300,115.7700],
+    [5.3467,115.7433],[5.2600,115.7900],[5.2000,115.8400],[5.1600,115.9000],[5.1333,115.9500]
+  ],
+  estaciones:[
+    { n:'Tanjung Aru · Kota Kinabalu', ll:[5.9333,116.0500], nota:'Cabecera urbana; contigua al aeropuerto internacional y al puerto.' },
+    { n:'Papar',                        ll:[5.7333,115.9333], nota:'Nodo intermedio del llano costero.' },
+    { n:'Beaufort',                     ll:[5.3467,115.7433], nota:'Bifurcación e inicio del tramo de montaña.' },
+    { n:'Tenom',                        ll:[5.1333,115.9500], nota:'Término interior tras la garganta del río Padas.' }
+  ]
+};
+
+/* Puntos de estrangulamiento y cruces críticos ---------------------------- */
+const CHOKEPOINTS = [
+  { id:'ck-lanang', nombre:'Puente Jambatan Lanang', ll:[2.2437,111.8337], bando:'PACTEAK',
+    coordFuente:"2°14'37,3\"N 111°50'01,3\"E",
+    rel:'Cruce del Rejang inmediato a Sibu. Ambos JIPOE lo señalan como punto de interdicción sobre el único eje terrestre de alta velocidad. Su control niega el acceso a los puertos marítimo y aéreo de Bintulu.',
+    datos:[['Tipo','cruce fluvial sobre eje Trans-Borneo'],['Maniobra admisible','montada ≈ compañía · desmontada ≤ batallón'],['Efecto evaluado','interdicción y retardo']],
+    fuentes:['〔BOR-OBO-003, pp. 9-10〕','〔BOR-PAC-003, pp. 7-8〕'],
+    alerta:'La precisión aparente de la coordenada no incluye estudio de movilidad, clase de puente ni fuente. Georreferenciar antes de convertirla en NAI o punto decisivo.' },
+
+  { id:'ck-durin', nombre:'Puente Durin', ll:[2.1566,112.0143], bando:'PACTEAK',
+    coordFuente:"2°09'23,8\"N 112°00'51,4\"E",
+    rel:'Segundo cruce del corredor Sibu–Bintulu. Comparte con el Jambatan Lanang la función de retardo sobre la Trans-Borneo y procede de recursos gráficos comunes a ambos JIPOE.',
+    datos:[['Tipo','cruce fluvial sobre eje Trans-Borneo'],['Brecha','húmeda · limita maniobra montada'],['Efecto evaluado','interdicción y retardo']],
+    fuentes:['〔BOR-OBO-003, pp. 9-10〕','〔BOR-PAC-003, pp. 7-8〕'] },
+
+  { id:'ck-kapuas', nombre:'Cruce del río Kapuas · ferris', ll:[0.0333,110.1167], bando:'OBO',
+    rel:'El caso registra que los puentes sobre el Kapuas siguen en construcción y que el uso de ferris es esencial. Es el estrangulamiento propio del eje logístico interior de Kalimantan hacia el frente de Kuching.',
+    datos:[['Estado','puentes en construcción'],['Modo vigente','ferri'],['Eje afectado','Banjarmasin–Pontianak–Kuching']],
+    fuentes:['〔BOR-GEN-002, p. 19〕'] },
+
+  { id:'ck-entikong', nombre:'Paso fronterizo de Entikong–Tebedu', ll:[0.9333,110.3167], bando:'DISPUTADO',
+    rel:'Único cruce terrestre principal entre Kalimantan y Sarawak sobre el eje Pontianak–Kuching; punto de paso obligado del sostenimiento terrestre de Kalimantan hacia su cabeza de puente occidental.',
+    datos:[['Tipo','paso fronterizo carretero'],['Ejes enlazados','Trans-Kalimantan ↔ Pan-Borneo']],
+    fuentes:['〔BOR-GEN-002, p. 19〕'], derivado:true },
+
+  { id:'ck-padas', nombre:'Garganta del río Padas · Beaufort–Tenom', ll:[5.2400,115.8200], bando:'PACTEAK',
+    rel:'Tramo de montaña del ferrocarril de Sabah sin alternativa vial equivalente. Objetivo natural de un efecto cibernético «Disrupt Rail» o de una interdicción puntual.',
+    datos:[['Modo','ferrocarril de vía única'],['Alternativa vial','inexistente en el tramo'],['Vulnerabilidad','carta ciber de interrupción ferroviaria']],
+    fuentes:['〔BOR-OWS-003, diaps. 8-11〕','〔BOR-GEN-002, p. 21〕'], derivado:true },
+
+  { id:'ck-balabac-str', nombre:'Estrecho de Balabac', ll:[7.6000,117.0000], bando:'NEUTRAL',
+    rel:'Acceso septentrional entre el mar de China Meridional y el mar de Sulú. Evaluado como zona minada por el JIPOE OBO y como NAI por el JIPOE PACTEAK. Estrecho internacional sujeto a paso en tránsito según el memorando jurídico.',
+    datos:[['Función','acceso SCS ↔ mar de Sulú'],['Minado evaluado','sí · lista OBO'],['Régimen jurídico','paso en tránsito por estrecho internacional']],
+    fuentes:['〔BOR-OBO-003, p. 8〕','〔BOR-PAC-003, p. 19〕','〔BOR-PAC-001, pp. 12-14〕'] },
+
+  { id:'ck-makassar', nombre:'Estrecho de Makassar', ll:[-1.5000,118.5000], bando:'NEUTRAL',
+    rel:'Corredor profundo entre Borneo y Célebes. NAI 3 del JIPOE PACTEAK. Ruta marítima archipelágica indonesia: el memorando jurídico distingue tránsito por ALKI, paso en tránsito y paso inocente.',
+    datos:[['Batimetría','muy superior a los 200 m de las aguas próximas a Borneo'],['Régimen jurídico','ruta marítima archipelágica indonesia'],['NAI','3 · JIPOE PACTEAK']],
+    fuentes:['〔BOR-GEN-002, p. 18〕','〔BOR-PAC-003, p. 19〕','〔BOR-PAC-001, pp. 12-14〕'] }
+];
+
+/* ---- 1.5 Amenaza · emplazamientos A2/AD del OOB -------------------------- */
+/* rCaso: radio con respaldo en el expediente. rBrief: valor del encargo.    */
+const SISTEMAS = {
+  'SA-20B':  { nombre:'SAM SA-20B / SA-300', clase:'Defensa aérea terrestre',
+               rCaso:120, rBrief:108,
+               ficha:[['Alcance (JIPOE PACTEAK)','120 mn'],['Techo','88.500 ft'],['TTP','guiado pasivo · control de emisiones e intermitencia'],['Organización','batallón con 6 lanzadores TEL']],
+               nota:'El expediente presenta este alcance sin fuente, perfil, cadena de sensores ni probabilidad de efecto. El anillo es una ayuda de planeamiento, no una zona de negación demostrada.',
+               fuentes:['〔BOR-PAC-003, p. 11〕','〔BOR-OBO-002, p. 9〕'] },
+
+  'C-802A':  { nombre:'CDCM C-802A / familia YJ-8', clase:'Defensa costera antibuque',
+               rCaso:null, rBrief:97,
+               ficha:[['Alcance en el expediente','no declarado para esta variante'],['Organización','batallón con 12 lanzadores TEL'],['TTP','disparar y desplazarse']],
+               nota:'Ninguna lámina del expediente asigna alcance al C-802A: las tablas técnicas solo cifran el CM-302. El radio mostrado procede del encargo (180 km / 97 mn) y es una hipótesis de trabajo.',
+               fuentes:['〔BOR-OBO-006, Orden_Batalla_OBO!A124:J130〕','〔BOR-OBO-002, p. 9〕'] },
+
+  'CM-302':  { nombre:'CDCM CM-302', clase:'Defensa costera antibuque',
+               rCaso:270, rBrief:97,
+               ficha:[['Alcance (JIPOE PACTEAK)','270 mn'],['TTP','disparar y desplazarse'],['Organización','batallón con 12 lanzadores TEL']],
+               nota:'El XLSX del OOB rotula esta unidad como «CM-802», designación que no aparece en ninguna versión de control: ambas muestran CM-302. Se conserva como probable fusión tipográfica.',
+               fuentes:['〔BOR-PAC-003, p. 12〕','〔BOR-OBO-006, Orden_Batalla_OBO!A136:J136〕'] },
+
+  'DF-21D':  { nombre:'ASBM DF-21D', clase:'Misil balístico antibuque',
+               rCaso:810, rBrief:810,
+               ficha:[['Alcance (JIPOE PACTEAK)','810 mn'],['Alcance (JIPOE OBO)','800-1.460 mn'],['Techo','160.000 ft'],['TTP','adquisición desde el espacio · disparar y desplazarse']],
+               nota:'Las dos cifras del expediente se contradicen y ninguna cita fuente. El JIPOE OBO concluye que el enfrentamiento naval estadounidense operará cerca del límite de cobertura del DF-21, lo que restringiría su maniobra.',
+               fuentes:['〔BOR-PAC-003, p. 12〕','〔BOR-OBO-003, p. 8〕'] },
+
+  'DF-21C':  { nombre:'MRBM DF-21C', clase:'Misil balístico de alcance medio',
+               rCaso:970, rBrief:970,
+               ficha:[['Alcance (JIPOE PACTEAK)','970 mn'],['TTP','adquisición desde el espacio · disparar y desplazarse']],
+               nota:'Alcance declarado sin fuente ni condiciones de lanzamiento. Cubre la totalidad de la JOA desde Banjarmasin.',
+               fuentes:['〔BOR-PAC-003, p. 12〕'] },
+
+  'OTH-T':   { nombre:'Sensores costeros OTH-T', clase:'Detección más allá del horizonte',
+               rCaso:300, rBrief:200,
+               ficha:[['Banda 200-300 mn','detección máxima de sensores OTH-T costeros con atmósfera favorable'],['Banda ≥ 300 mn','presencia de destructores y fragatas · capacidad de detección y adquisición'],['Integración','apoyo KRAF y destacamento ISR chino en el CG de KRN']],
+               nota:'Las bandas del JIPOE PACTEAK se superponen y no definen punto de referencia, plataforma ni condición. El anillo dibuja la banda declarada, no una cobertura calculada.',
+               fuentes:['〔BOR-PAC-003, p. 9〕'] },
+
+  'KJ-2000': { nombre:'AEW&C KJ-2000', clase:'Alerta temprana aerotransportada',
+               rCaso:null, rBrief:200,
+               ficha:[['Unidades','1 y 2 AEW&C Sq · 3 aeronaves cada una'],['Bases','Pontianak y Banjarmasin'],['Alcance en el expediente','no declarado']],
+               nota:'El expediente confirma la existencia y las bases de los escuadrones KJ-2000, pero ninguna lámina asigna alcance de detección. El anillo solo aparece bajo el preajuste «Brief» y es enteramente derivado.',
+               fuentes:['〔BOR-OBO-006, Orden_Batalla_OBO!A87:J111〕','〔BOR-PAC-003, p. 11〕'] }
+};
+
+const A2AD = [
+  { id:'ad-kuching-sam',  sistema:'SA-20B', ll:[1.5000,110.3200], sede:'Kuching',
+    unidad:'3.er Batallón · 1.ª Brigada de Defensa Aérea · Distrito Militar Occidental', origen:'OOB' },
+  { id:'ad-kuching-cdcm', sistema:'C-802A', ll:[1.5800,110.3600], sede:'Kuching',
+    unidad:'1.er Batallón · 2.ª Brigada de Defensa Costera · Distrito Militar Occidental', origen:'OOB' },
+  { id:'ad-pontianak-sam',sistema:'SA-20B', ll:[-0.1000,109.3800], sede:'Pontianak',
+    unidad:'1.er Batallón · 1.ª Brigada de Defensa Aérea', origen:'OOB' },
+  { id:'ad-ketapang-sam', sistema:'SA-20B', ll:[-1.8333,109.9667], sede:'Ketapang-Iskandar',
+    unidad:'2.º Batallón · 1.ª Brigada de Defensa Aérea', origen:'OOB' },
+  { id:'ad-balikpapan-sam',sistema:'SA-20B', ll:[-1.2500,116.8700], sede:'Balikpapan',
+    unidad:'1.er Batallón · 2.ª Brigada de Defensa Aérea · Distrito Militar Oriental', origen:'OOB' },
+  { id:'ad-tarakan-sam',  sistema:'SA-20B', ll:[3.3100,117.5900], sede:'Tarakan',
+    unidad:'2.º Batallón · 2.ª Brigada de Defensa Aérea', origen:'OOB' },
+  { id:'ad-sandakan-sam', sistema:'SA-20B', ll:[5.8600,118.0900], sede:'Sandakan',
+    unidad:'3.er Batallón · 2.ª Brigada de Defensa Aérea', origen:'OOB' },
+  { id:'ad-sandakan-cdcm',sistema:'C-802A', ll:[5.8200,118.1500], sede:'Sandakan',
+    unidad:'2.º Batallón · 2.ª Brigada de Defensa Costera', origen:'OOB' },
+  { id:'ad-banjar-sam',   sistema:'SA-20B', ll:[-3.3400,114.6100], sede:'Banjarmasin',
+    unidad:'1.º, 2.º y 3.er Batallón · 3.ª Brigada de Defensa Aérea · Alto Mando', origen:'OOB' },
+  { id:'ad-banjar-cdcm',  sistema:'CM-302', ll:[-3.2900,114.5500], sede:'Banjarmasin',
+    unidad:'1.er Batallón · 1.ª Brigada de Defensa Costera · Alto Mando', origen:'OOB' },
+  { id:'ad-banjar-asbm',  sistema:'DF-21D', ll:[-3.3600,114.5600], sede:'Banjarmasin',
+    unidad:'1.º y 2.º Batallón · 1.ª Brigada de Fuerzas Aeroespaciales', origen:'OOB' },
+  { id:'ad-banjar-mrbm',  sistema:'DF-21C', ll:[-3.3000,114.6400], sede:'Banjarmasin',
+    unidad:'3.er y 4.º Batallón · 1.ª Brigada de Fuerzas Aeroespaciales', origen:'OOB' },
+  { id:'ad-pontianak-aew',sistema:'KJ-2000',ll:[-0.1507,109.4039], sede:'Pontianak',
+    unidad:'1.ª Escuadrilla AEW&C · 3 aeronaves', origen:'OOB' },
+  { id:'ad-banjar-aew',   sistema:'KJ-2000',ll:[-3.4424,114.7628], sede:'Banjarmasin',
+    unidad:'2.ª Escuadrilla AEW&C · 3 aeronaves', origen:'OOB' },
+  { id:'ad-kuching-oth',  sistema:'OTH-T',  ll:[1.5535,110.3593], sede:'Kuching',
+    unidad:'Sensores costeros KRN · defensa en capas', origen:'JIPOE' },
+  { id:'ad-banjar-oth',   sistema:'OTH-T',  ll:[-3.3186,114.5944], sede:'Banjarmasin',
+    unidad:'Sensores costeros KRN · defensa en capas', origen:'JIPOE' }
+];
+
+/* Emplazamientos pedidos por el encargo que el OOB no respalda ------------- */
+const A2AD_HIPOTESIS = [
+  { id:'hx-bintulu-sam',  sistema:'SA-20B', ll:[3.1700,113.0300], sede:'Bintulu',
+    unidad:'Cúpula SAM avanzada · hipótesis del encargo', origen:'BRIEF' },
+  { id:'hx-bintulu-cdcm', sistema:'C-802A', ll:[3.2686,113.0619], sede:'Bintulu',
+    unidad:'Defensa costera avanzada · hipótesis del encargo', origen:'BRIEF' }
+];
+
+/* ---- 1.6 Campos de minas evaluados --------------------------------------- */
+const MINAS = [
+  { id:'mn-kuching', nombre:'Accesos al puerto de Kuching', ll:[1.7600,110.3900], r:26000,
+    listas:'JIPOE OBO', bando:'OBO',
+    rel:'Minado evaluado en las proximidades del puerto de Kuching. Refuerza la evaluación de que los cuellos de botella favorecen al defensor y condiciona cualquier apertura de SPOD por la coalición.',
+    fuentes:['〔BOR-OBO-003, p. 8〕'] },
+  { id:'mn-trusan', nombre:'Canal de Trusan · bahía de Brunéi', ll:[5.0500,115.1500], r:30000,
+    listas:'JIPOE OBO', bando:'OBO',
+    rel:'Minado evaluado sobre el acceso a la bahía de Brunéi, entrada logística natural de la coalición hacia Muara y Bandar Seri Begawan.',
+    fuentes:['〔BOR-OBO-003, p. 8〕'] },
+  { id:'mn-balabac', nombre:'Estrecho de Balabac', ll:[7.6000,117.0000], r:45000,
+    listas:'JIPOE OBO', bando:'OBO',
+    rel:'Minado evaluado en el acceso septentrional entre el mar de China Meridional y el mar de Sulú, sobre un estrecho internacional sujeto a paso en tránsito.',
+    fuentes:['〔BOR-OBO-003, p. 8〕','〔BOR-PAC-001, pp. 12-14〕'] },
+  { id:'mn-lahad', nombre:'Lahad Datu', ll:[5.1000,118.4200], r:28000,
+    listas:'JIPOE OBO y JIPOE PACTEAK', bando:'OBO',
+    rel:'Único punto en que coinciden ambas listas de minado. La coincidencia no constituye corroboración independiente: los dos productos comparten recursos editoriales.',
+    fuentes:['〔BOR-OBO-003, p. 8〕','〔BOR-PAC-003, p. 6〕'] },
+  { id:'mn-banggi', nombre:'Pulau Banggi', ll:[7.2000,117.1500], r:26000,
+    listas:'JIPOE PACTEAK', bando:'OBO',
+    rel:'Minado que solo aparece en la lista de PACTEAK. Ninguno de los dos productos ofrece fecha, extensión ni responsable del minado.',
+    fuentes:['〔BOR-PAC-003, p. 6〕'] }
+];
+
+/* ---- 1.7 Ejes de aproximación · COA de la coalición evaluados por OBO ---- */
+const EJES = [
+  { id:'coa1-terrestre', coa:'MLCOA',
+    nombre:'MLCOA · esfuerzo principal terrestre malasio hacia Simanggang',
+    rel:'Curso de acción más probable evaluado por el JIPOE OBO: la 4.ª División malasia conduce el esfuerzo principal contra Simanggang, con un grupo de apoyo defendiendo Kota Kinabalu y Kudat, un grupo de configuración sobre las SLOC y las fuerzas aéreas y marítimas de OBO, y una reserva estratégica.',
+    hitos:'Fuerzas aéreas y navales desde el Día D · fuerzas terrestres estadounidenses en D+4 · desembarcos en D+8 · ofensiva malasia en D+16.',
+    linea:[[5.9804,116.0735],[5.3467,115.7433],[4.9031,114.9398],[4.3947,113.9877],
+           [3.1667,113.0333],[2.2870,111.8309],[1.2372,111.4624]] },
+
+  { id:'coa1-anf-kudat', coa:'MLCOA', nombre:'MLCOA · desembarco anfibio en Kudat (NAI 2)',
+    rel:'Entrada anfibia sobre el extremo norte de Sabah entre D+8 y D+15.', hitos:'D+8 a D+15.',
+    linea:[[7.6000,116.3000],[7.2000,116.5500],[6.8833,116.8333]] },
+
+  { id:'coa1-anf-miri', coa:'MLCOA', nombre:'MLCOA · desembarco anfibio en Miri (NAI 3)',
+    rel:'Entrada anfibia sobre el nodo de refino y carga de Miri entre D+8 y D+15.', hitos:'D+8 a D+15.',
+    linea:[[5.3000,113.2000],[4.8000,113.6000],[4.3947,113.9877]] },
+
+  { id:'coa1-anf-bintulu', coa:'MLCOA', nombre:'MLCOA · desembarco anfibio en Bintulu (NAI 4)',
+    rel:'Entrada anfibia sobre el único puerto federal de aguas profundas de Sarawak entre D+8 y D+15.', hitos:'D+8 a D+15.',
+    linea:[[4.3000,112.2000],[3.7000,112.6000],[3.2686,113.0619]] },
+
+  { id:'coa2-terrestre', coa:'MDCOA',
+    nombre:'MDCOA · esfuerzo terrestre estadounidense desde Brunéi hacia Kuching',
+    rel:'Curso de acción más peligroso evaluado por el JIPOE OBO: una fuerza terrestre estadounidense parte de Brunéi hacia Kuching, ocupando Bintulu y Simanggang, mientras otro grupo fija fuerzas de OBO en Sabah y el grupo de configuración ataca fuerzas aéreas y marítimas desde el Día D. La 3.ª MEB queda en reserva.',
+    hitos:'Acción naval y anfibia en D+5 · ofensiva terrestre en D+6 · destrucción de fuerzas de Kalimantan cerca de Kuching no más tarde de D+8 · entrada de la 4.ª División malasia en D+15/D+16. La secuencia es internamente contradictoria en el original.',
+    linea:[[4.9031,114.9398],[4.5833,114.1917],[4.3947,113.9877],[3.2686,113.0619],
+           [2.4000,112.3000],[2.2870,111.8309],[1.2372,111.4624],[1.5535,110.3593]] },
+
+  { id:'coa2-envolvente', coa:'MDCOA',
+    nombre:'MDCOA · envolvente marítima por el mar de Natuna hacia Kuching',
+    rel:'Vector de aproximación marítima por el oeste de la JOA. El JIPOE OBO evalúa que el terreno canaliza la actividad de portaaviones hacia el mar de China Meridional y que la fuerza naval estadounidense operará cerca del límite de cobertura del DF-21.',
+    hitos:'Acción naval y anfibia desde D+5. El vértice P7 de la JOA (05°N 105°E) fija el límite occidental del espacio.',
+    linea:[[5.0000,105.0000],[4.4000,106.8000],[3.6000,108.4000],[2.8000,109.4000],
+           [2.1000,109.9000],[1.7600,110.3900],[1.5535,110.3593]] },
+
+  { id:'coa2-fijar-sabah', coa:'MDCOA', nombre:'MDCOA · grupo de fijación en Sabah',
+    rel:'Fuerza que fija a las formaciones de Kalimantan en el frente norte mientras el esfuerzo principal actúa en el sur.',
+    hitos:'Desde el Día D.',
+    linea:[[5.9804,116.0735],[5.7500,117.1000],[5.8402,118.1179]] }
+];
+
+/* ---- 1.8 Áreas de interés (NAI) ------------------------------------------ */
+const NAI = [
+  { id:'nai-o1', set:'OBO', n:1, nombre:'Infraestructura petrolera de Brunéi',
+    ll:[4.6400,114.3800], r:34000, ev:'Fuerzas marítimas de la coalición aseguran la infraestructura petrolera de Brunéi', vent:'Día D — TBD', coa:'COA 2',
+    ind:'Presencia naval persistente de la coalición en las inmediaciones de la infraestructura petrolera bruneana.' },
+  { id:'nai-o2', set:'OBO', n:2, nombre:'Desembarco anfibio en Kudat',
+    ll:[6.8833,116.8333], r:30000, ev:'Desembarco anfibio en Kudat', vent:'D+8 — D+15', coa:'COA 1',
+    ind:'Fuerzas terrestres de la coalición, probablemente una brigada, conducen desembarco anfibio hacia los SPOD principales.' },
+  { id:'nai-o3', set:'OBO', n:3, nombre:'Desembarco anfibio en Miri',
+    ll:[4.3947,113.9877], r:30000, ev:'Desembarco anfibio en Miri', vent:'D+8 — D+15', coa:'COA 1',
+    ind:'Fuerzas terrestres de la coalición, probablemente una brigada, conducen desembarco anfibio hacia los SPOD principales.' },
+  { id:'nai-o4', set:'OBO', n:4, nombre:'Desembarco anfibio en Bintulu',
+    ll:[3.2686,113.0619], r:30000, ev:'Desembarco anfibio en Bintulu', vent:'D+8 — D+15', coa:'COA 1',
+    ind:'Fuerzas terrestres de la coalición, probablemente una brigada, conducen desembarco anfibio hacia los SPOD principales.' },
+  { id:'nai-o5', set:'OBO', n:5, nombre:'Concentración en Bandar Seri Begawan',
+    ll:[4.9031,114.9398], r:32000, ev:'Más de 3 BCT en Bandar Seri Begawan', vent:'D+4 — TBD', coa:'COA 2',
+    ind:'Concentración principal de fuerzas terrestres de la coalición en los puertos de Seri Begawan o Kota Kinabalu.' },
+  { id:'nai-o6', set:'OBO', n:6, nombre:'Movimiento de la 4.ª División malasia',
+    ll:[5.9804,116.0735], r:34000, ev:'Movimiento de la 4.ª División de Malasia', vent:'D+15 — TBD', coa:'COA 1',
+    ind:'Prioridad de movimiento de la 4.ª División malasia para iniciar la operación terrestre principal de la coalición.' },
+  { id:'nai-o7', set:'OBO', n:7, nombre:'Lanzamiento aéreo desde Singapur y Filipinas',
+    ll:[5.5000,111.0000], r:60000, ev:'Bombarderos y cazas desde Singapur y Filipinas, y ataques navales', vent:'Día D — TBD', coa:'Ambos',
+    ind:'Lanzamiento de bombarderos y cazas desde los aeropuertos de la región · iniciación de operaciones enemigas.' },
+
+  { id:'nai-p1', set:'PACTEAK', n:1, nombre:'Banjarmasin', ll:[-3.3186,114.5944], r:45000,
+    ev:'Reserva estratégica, fuerzas aeroespaciales y Alto Mando', vent:'—', coa:'Ambos',
+    ind:'PIR sobre refuerzo, medios de alto valor y escalada. Los rectángulos cartográficos del original no aportan coordenadas ni límites verificables.' },
+  { id:'nai-p2', set:'PACTEAK', n:2, nombre:'Balikpapan', ll:[-1.2379,116.8529], r:40000,
+    ev:'4.ª División, caza Su-30MK2 y refino', vent:'—', coa:'Ambos', ind:'PIR sobre refuerzo y medios de alto valor.' },
+  { id:'nai-p3', set:'PACTEAK', n:3, nombre:'Estrecho de Makassar', ll:[-1.5000,118.5000], r:80000,
+    ev:'Movimiento marítimo de refuerzo por el corredor profundo', vent:'—', coa:'Ambos', ind:'PIR sobre refuerzo.' },
+  { id:'nai-p4', set:'PACTEAK', n:4, nombre:'Sandakan', ll:[5.8402,118.1179], r:38000,
+    ev:'Actividad del frente norte y sostenimiento de la 3.ª División', vent:'—', coa:'Ambos', ind:'PIR sobre actividad del frente norte.' },
+  { id:'nai-p5', set:'PACTEAK', n:5, nombre:'Estrecho de Balabac', ll:[7.6000,117.0000], r:55000,
+    ev:'Acceso septentrional y minado evaluado', vent:'—', coa:'Ambos', ind:'PIR sobre escalada y control de accesos.' },
+  { id:'nai-p8', set:'PACTEAK', n:8, nombre:'Puerto de Kuching', ll:[1.5486,110.3839], r:34000,
+    ev:'Nodo de sostenimiento del frente sur', vent:'—', coa:'Ambos', ind:'PIR sobre refuerzo y transporte marítimo de Kalimantan.' },
+  { id:'nai-p9', set:'PACTEAK', n:9, nombre:'Pontianak', ll:[-0.0263,109.3425], r:40000,
+    ev:'Embarque de fuerzas en anfibios y ferris', vent:'—', coa:'Ambos', ind:'PIR sobre refuerzo y medios anfibios.' }
+];
+
+/* ---- 1.9 Marco jurídico y espacios neutrales ----------------------------- */
+const JURIDICO = [
+  { id:'ju-indonesia', nombre:'Indonesia · neutralidad declarada', ll:[-2.0000,120.5000],
+    rel:'Indonesia condena la invasión de Malasia pero declara neutralidad. Conserva soberanía sobre territorio, aguas interiores, aguas archipelágicas, mar territorial y espacio aéreo nacional; las fuerzas beligerantes no pueden usarlos como base de operaciones hostiles.',
+    datos:[['Posición','neutral declarada'],['Prohibición','uso como base de operaciones hostiles'],['Regímenes distinguidos','ruta archipelágica · paso en tránsito · paso inocente']],
+    fuentes:['〔BOR-GEN-002, p. 13〕','〔BOR-PAC-001, pp. 12-14〕'],
+    alerta:'El mapa de aguas archipelágicas y frontera del mar territorial anunciado por el memorando jurídico no está incluido en el archivo. No inferir corredores jurídicos del mapa operacional.' },
+
+  { id:'ju-natuna', nombre:'Islas Natuna · Indonesia', ll:[3.9000,108.2000],
+    rel:'Archipiélago indonesio dentro del sector occidental de la JOA. Su condición neutral condiciona el vector envolvente por el mar de Natuna del COA más peligroso.',
+    datos:[['Soberanía','Indonesia · neutral'],['Relación con la JOA','interior al polígono de ocho puntos']],
+    fuentes:['〔BOR-PAC-001, pp. 12-14〕'], derivado:true },
+
+  { id:'ju-spratly', nombre:'Spratly · disputa abierta', ll:[8.6000,112.4000],
+    rel:'El caso registra que las reclamaciones sobre las Spratly, al norte de Borneo, siguen siendo contenciosas entre los Estados del mar de China Meridional, mientras la mayoría de reclamaciones de aguas territoriales están resueltas.',
+    datos:[['Estado','contencioso abierto'],['Efecto','condiciona el entorno diplomático del teatro']],
+    fuentes:['〔BOR-GEN-002, p. 18〕'] },
+
+  { id:'ju-ssn', nombre:'Áreas restringidas para submarinos', ll:[2.5000,112.0000],
+    rel:'Las aguas próximas a Borneo son generalmente menores de 200 m. El caso representa áreas restringidas y de aguas someras para submarinos estadounidenses; los mares de Célebes y Sulú y el estrecho de Makassar ofrecen profundidades mucho mayores.',
+    datos:[['Batimetría general','< 200 m alrededor de Borneo'],['Aguas profundas','Célebes · Sulú · Makassar'],['Efecto','restricción a la operación submarina aliada']],
+    fuentes:['〔BOR-GEN-002, p. 18 · Figura 12〕','〔BOR-OBO-003, p. 8〕'] }
+];
+
+/* ---- 1.9-bis · Anclajes de retícula OWS ----------------------------------
+   Identificadores de hexágono **leídos sobre el tablero impreso** y registrados
+   en la sección 7 de `marco-geoespacial-del-juego-borneo.md`. Son evidencia
+   visual verificada, no una georreferenciación: sitúan un nodo dentro de un
+   hexágono nombrado, pero no permiten reconstruir la malla completa.
+   `〔BOR-OWS-008, mapa regional, sector Borneo; mapa táctico, sectores Kuching,
+   Pontianak, Sibu y Bintulu〕` */
+const ANCLAJES_OWS = [
+  { nodo:'pt-kuching',     reg:'F11', tac:'CX-114', precision:'confirmado',
+    nota:'Centro, puerto y aeródromo en F11. En el táctico, el núcleo urbano y el puerto se leen en CX-114 y el aeródromo en CX-115: son microhexágonos distintos y deben registrarse por separado.' },
+  { nodo:'af-kuching',     reg:'F11', tac:'CX-115', precision:'confirmado',
+    nota:'Aeródromo de Kuching, separado del núcleo urbano en la retícula táctica.' },
+  { nodo:'pt-pontianak',   reg:'E11', tac:'CR-124', precision:'limite',
+    nota:'Rasgos regionales confirmados en E11, pero la ficha se dibuja sobre E11/F12; el anclaje agregado conserva precisión «límite» hasta fijar la convención de ficha. Macrozona táctica T-26.' },
+  { nodo:'af-supadio',     reg:'E11', tac:'CR-125', precision:'confirmado',
+    nota:'Aeródromo de Pontianak, microhexágono propio en la retícula táctica.' },
+  { nodo:'pt-sibu',        reg:'G10', tac:'DF-110', precision:'confirmado',
+    nota:'Ciudad, puerto y aeródromo comparten DF-110; macrozona táctica W-23. Anclaje recomendado para el cambio de escala.' },
+  { nodo:'pt-bintulu',     reg:null,  tac:'DM-103', precision:'confirmado',
+    nota:'Ciudad y puerto en DM-103; el aeródromo en DL-104. Bintulu no aparece rotulada con claridad suficiente en el tablero regional, por lo que no recibe hexágono REG-100 por aproximación.' },
+  { nodo:'af-bintulu',     reg:null,  tac:'DL-104', precision:'confirmado',
+    nota:'Aeródromo de Bintulu, junto a un límite de macrozonas.' },
+  { nodo:'pt-ketapang',    reg:'F13', tac:null,     precision:'confirmado',
+    nota:'Ficha rotulada «Iskandar» en F13. La wiki advierte que no equivale automáticamente a Iskandar Puteri; el rótulo compuesto del OOB sigue sin resolver.' },
+  { nodo:'af-brunei',      reg:'I09', tac:null,     precision:'limite',
+    nota:'Ficha «Brunéi» en I09. No equivale automáticamente a Muara ni a Bandar Seri Begawan: la ficha cubre un espacio mayor que cualquiera de los dos nodos.' },
+  { nodo:'pt-samarinda',   reg:'J12', tac:null,     precision:'confirmado',
+    nota:'Punto urbano regional confirmado. Comparte hexágono regional con Balikpapan.' },
+  { nodo:'pt-balikpapan',  reg:'J12', tac:null,     precision:'confirmado',
+    nota:'Anclaje de localidad confirmado; comparte J12 con Samarinda. Las instalaciones deben separarse al detallarlas.' },
+  { nodo:'pt-tawau',       reg:'K09', tac:null,     precision:'confirmado',
+    nota:'Punto urbano regional confirmado.' },
+  { nodo:'pt-banjarmasin', reg:'I13', tac:null,     precision:'limite',
+    nota:'Confianza media-alta: el punto está próximo a una arista y la ficha invade el hexágono vecino.' },
+  { nodo:'pt-kk',          reg:'J09', tac:null,     precision:'limite',
+    nota:'Confianza media: la ficha cubre parcialmente el punto.' },
+  { nodo:'pt-sandakan',    reg:'K08', tac:null,     precision:'limite',
+    nota:'Confianza media: la ficha cubre parcialmente el punto.' }
+];
+
+/* ---- 1.10 Paleta por bando ----------------------------------------------- */
+/* Paleta heredada del sistema «Mando Caribe»: los mismos acentos que usa el
+   Atlas Logístico, para que ambos visores se lean como un solo conjunto. */
+const TINTE = {
+  OBO:       '#e11d48',   /* rojo     · Kalimantan            */
+  PACTEAK:   '#1d4ed8',   /* OTAN     · coalición             */
+  NEUTRAL:   '#7c3aed',   /* conjunto · neutral               */
+  DISPUTADO: '#c2740a',   /* ámbar    · disputado / derivado  */
+  ENERGIA:   '#0891b2',   /* cian     · infraestructura       */
+  RADAR:     '#4f46e5'    /* índigo   · JOA y acento por defecto */
+};
+
+const ETIQUETA_BANDO = {
+  OBO:       'OBO · Kalimantan',
+  PACTEAK:   'PACTEAK · Malasia/Brunéi/coalición',
+  NEUTRAL:   'Neutral',
+  DISPUTADO: 'Disputado / en tránsito de control'
+};
+
+const ETIQUETA_PROT = {
+  NSL:      { t:'NSL · no-strike list', c:'nsl' },
+  OBJETIVO: { t:'Objetivo militar', c:'target' },
+  RTL:      { t:'RTL · lista restringida', c:'rtl' },
+  ND:       { t:'Sin categoría asignada', c:'info' }
+};
+</script>
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════════════════════
+   MÓDULO 2 · UTILIDADES GEODÉSICAS Y DE FORMATO
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const R_TIERRA_M = 6371008.8;   // radio medio WGS84
+const M_POR_NM   = 1852;
+
+/** Distancia haversine en metros entre dos pares [lat, lon]. */
+function distanciaM(a, b) {
+  const rad = Math.PI / 180;
+  const dLat = (b[0] - a[0]) * rad;
+  const dLon = (b[1] - a[1]) * rad;
+  const la1 = a[0] * rad, la2 = b[0] * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R_TIERRA_M * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Rumbo inicial verdadero en grados (0-360). */
+function rumbo(a, b) {
+  const rad = Math.PI / 180;
+  const la1 = a[0] * rad, la2 = b[0] * rad, dLon = (b[1] - a[1]) * rad;
+  const y = Math.sin(dLon) * Math.cos(la2);
+  const x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dLon);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+const aNm = m => m / M_POR_NM;
+const aKm = m => m / 1000;
+
+/** Grados decimales → grados-minutos-segundos con hemisferio. */
+function dms(valor, esLat) {
+  const hemis = esLat ? (valor >= 0 ? 'N' : 'S') : (valor >= 0 ? 'E' : 'W');
+  const abs = Math.abs(valor);
+  const g = Math.floor(abs);
+  const mTot = (abs - g) * 60;
+  const m = Math.floor(mTot);
+  const s = ((mTot - m) * 60).toFixed(1);
+  const anchoG = esLat ? 2 : 3;
+  return `${String(g).padStart(anchoG, '0')}°${String(m).padStart(2, '0')}'${String(s).padStart(4, '0')}"${hemis}`;
+}
+
+const dec = (v, n = 4) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(n);
+const num = (v, n = 1) => v.toLocaleString('es-ES', { minimumFractionDigits: n, maximumFractionDigits: n });
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+
+/** DTG militar en Zulu: DDHHMMZ MMM AA. */
+function dtgZulu(d = new Date()) {
+  const mes = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getUTCDate())}${p(d.getUTCHours())}${p(d.getUTCMinutes())}Z ${mes[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(-2)}`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MÓDULO 3 · MAPA, CAPAS BASE Y SÍMBOLOS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const mapa = L.map('map', {
+  center: [2.6, 113.5],
+  zoom: 6,
+  minZoom: 3,
+  maxZoom: 14,
+  zoomControl: false,
+  worldCopyJump: false,
+  attributionControl: true,
+  preferCanvas: false
+});
+
+/* Planos de dibujo: la retícula bajo los vectores, la medición sobre todo. */
+mapa.createPane('malla');    mapa.getPane('malla').style.zIndex    = '390';
+mapa.createPane('medicion'); mapa.getPane('medicion').style.zIndex = '690';
+
+L.control.zoom({ position: 'topright' }).addTo(mapa);
+L.control.scale({ position: 'topright', imperial: true, metric: true, maxWidth: 150 }).addTo(mapa);
+
+/* Todas las bases son de acceso libre: ninguna exige clave de API, para que el
+   archivo funcione al abrirlo sin configuración previa. */
+const BASES = {
+  dark: {
+    etiqueta: 'Táctico oscuro',
+    capa: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Esri, HERE, Garmin, &copy; OpenStreetMap contributors', maxZoom: 16
+    })
+  },
+  sat: {
+    etiqueta: 'Satélite',
+    capa: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics', maxZoom: 18
+    })
+  },
+  topo: {
+    etiqueta: 'Topográfico',
+    capa: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap · SRTM · &copy; OpenTopoMap (CC-BY-SA)', maxZoom: 16
+    })
+  },
+  /* Cartografía de atlas clásico: es la base cuyo verde oliva coincide casi
+     exactamente con la tierra impresa del tablero OWS (medido: #95a673 frente
+     al #9dac6b muestreado del original). El filtro de `.base-tablero` sube la
+     saturación para llevar además el mar al #8ad4f7 del tablero.
+     `〔BOR-OWS-008, mapa táctico〕` */
+  tablero: {
+    etiqueta: 'Tablero OWS',
+    capa: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Esri, National Geographic · paleta del tablero OWS 〔BOR-OWS-008〕',
+      maxNativeZoom: 12, maxZoom: 14
+    })
+  },
+  none: { etiqueta: 'Sin base', capa: L.layerGroup() }
+};
+
+/* Rótulos de referencia sobre la base oscura (topónimos, sin relieve) */
+const ROTULOS_BASE = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+  { attribution: '', maxZoom: 16, opacity: .34, pane: 'tilePane', zIndex: 250 });
+
+/** Capa base con la que arranca el cuadro. */
+const BASE_INICIAL = 'tablero';
+
+let baseActiva = 'dark';
+BASES.dark.capa.addTo(mapa);
+ROTULOS_BASE.addTo(mapa);
+
+function cambiarBase(clave) {
+  if (!BASES[clave] || clave === baseActiva) return;
+  mapa.removeLayer(BASES[baseActiva].capa);
+  if (mapa.hasLayer(ROTULOS_BASE)) mapa.removeLayer(ROTULOS_BASE);
+  BASES[clave].capa.addTo(mapa);
+  /* La base «Vacío» es un LayerGroup y no implementa `bringToBack` */
+  if (typeof BASES[clave].capa.bringToBack === 'function') BASES[clave].capa.bringToBack();
+  if (clave === 'dark') ROTULOS_BASE.addTo(mapa);
+  const cont = mapa.getContainer().classList;
+  cont.toggle('base-atenuada', clave === 'dark' || clave === 'topo');
+  cont.toggle('base-realzada', clave === 'sat');
+  cont.toggle('base-tablero',  clave === 'tablero');
+  aplicarPaletaTablero(clave === 'tablero');
+  baseActiva = clave;
+  document.getElementById('tmBase').textContent = BASES[clave].etiqueta.toUpperCase();
+}
+
+/* ---- 3.1 Fábrica de símbolos --------------------------------------------- */
+const GLIFOS = {
+  'puerto-mayor':
+    '<path d="M11 4.2v11M7.6 7h6.8M11 15.2c-3 0-5.2-2.2-5.4-5M11 15.2c3 0 5.2-2.2 5.4-5"/><circle cx="11" cy="3.4" r="1.5"/>',
+  'puerto-menor':
+    '<path d="M11 5.4v9.4M8.4 7.8h5.2M11 14.8c-2.4 0-4.2-1.8-4.4-4M11 14.8c2.4 0 4.2-1.8 4.4-4"/>',
+  'aerodromo':
+    '<path d="M11 3.6v14.8M4.6 10.4l6.4-2.2 6.4 2.2M7.8 17h6.4"/>',
+  'apod-regional':
+    '<path d="M11 4.8v12.4M6 10.6l5-1.8 5 1.8M8.4 16.2h5.2"/>',
+  'energia':
+    '<path d="M11 3.4 6.2 10.8a5.6 5.6 0 1 0 9.6 0z"/><path d="M11 12.4v3.2"/>',
+  'mando':
+    '<path d="M11 3 4.4 5.6v5c0 3.6 2.7 6.6 6.6 7.6 3.9-1 6.6-4 6.6-7.6v-5z"/><path d="M8.4 10.6l1.9 1.9 3.6-3.8"/>',
+  'dispositivo':
+    '<rect x="4.4" y="6.6" width="13.2" height="8.8"/><path d="m4.4 6.6 13.2 8.8M17.6 6.6 4.4 15.4"/>',
+  'choke':
+    '<path d="M5.6 4.4h10.8L5.6 17.6h10.8"/>',
+  'amenaza':
+    '<circle cx="11" cy="11" r="2"/><path d="M11 5.4a5.6 5.6 0 0 1 5.6 5.6M11 2.4a8.6 8.6 0 0 1 8.6 8.6"/>',
+  'mina':
+    '<circle cx="11" cy="11" r="4.4"/><path d="M11 2.6v3.4M11 16v3.4M2.6 11h3.4M16 11h3.4M5 5l2.4 2.4M14.6 14.6 17 17M17 5l-2.4 2.4M7.4 14.6 5 17"/>',
+  'nai':
+    '<rect x="4" y="4" width="14" height="14" rx="1"/><path d="M11 8v6M8 11h6"/>',
+  'juridico':
+    '<path d="M11 3.4v15.2M6 6.6h10M7 6.6 4.6 12h4.8zM15 6.6 12.6 12h4.8zM7.6 18.6h6.8"/>',
+  'punto':
+    '<circle cx="11" cy="11" r="4.4"/>'
+};
+
+/** Icono DivIcon con glifo SVG en el color del bando. */
+function icono(glifo, color, tam = 26, relleno = 'rgba(255,255,255,.92)') {
+  const svg =
+    `<svg width="${tam}" height="${tam}" viewBox="0 0 22 22" fill="none"
+          stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+       <circle cx="11" cy="11" r="10.2" fill="${relleno}" stroke="${color}" stroke-width="1.3" opacity=".97"/>
+       ${GLIFOS[glifo] || GLIFOS.punto}
+     </svg>`;
+  return L.divIcon({
+    className: '',
+    html: `<span class="mk" style="color:${color}"><span class="mk-halo"></span>${svg}</span>`,
+    iconSize: [tam, tam],
+    iconAnchor: [tam / 2, tam / 2],
+    popupAnchor: [0, -tam / 2]
+  });
+}
+
+/* ---- 3.2 Registro de capas ------------------------------------------------ */
+const CAPAS = new Map();   // id → { grupo, nombre, hint, tint, grupoLeaflet, activa }
+
+function registrar(id, def) {
+  CAPAS.set(id, Object.assign({ activa: false, grupoLeaflet: L.layerGroup() }, def));
+  return CAPAS.get(id).grupoLeaflet;
+}
+
+/* ---- 3.3 Índice de búsqueda ---------------------------------------------- */
+const INDICE = [];   // { txt, etiqueta, tipo, ll, bounds, capa, abrir }
+
+function indexar(entrada) { INDICE.push(entrada); }
+
+/* ---- 3.4 Estado de la aplicación ----------------------------------------- */
+const estado = {
+  radios: 'caso',        // 'caso' | 'brief'
+  seleccion: null,       // id de la entidad abierta en el inspector
+  anclaje: null,         // [lat, lon] del último punto medido
+  midiendo: false
+};
+</script>
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════════════════════
+   MÓDULO 4 · CONSTRUCCIÓN DE CAPAS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Enlaza un objeto Leaflet con su ficha: popup breve + apertura del inspector. */
+function enlazar(obj, ficha) {
+  const tinte = TINTE[ficha.bando] || TINTE.RADAR;
+  obj.bindPopup(
+    `<b>${esc(ficha.titulo)}</b><em>${esc(ficha.kicker)}</em>` +
+    `<span class="pop-cta">▸ Abrir ficha técnica</span>`,
+    { closeButton: true, maxWidth: 260, autoPan: true }
+  );
+  obj.on('click', () => abrirFicha(ficha, obj));
+  obj.on('popupopen', () => {
+    const el = obj.getPopup().getElement();
+    const cta = el && el.querySelector('.pop-cta');
+    if (cta) cta.onclick = () => { mapa.closePopup(); abrirFicha(ficha, obj); };
+  });
+  obj.options.__tinte = tinte;
+  return obj;
+}
+
+/* ---- 4.1 GRUPO A · Límites operacionales y control ----------------------- */
+
+/* JOA · polígono de ocho puntos + cierre hipotético */
+const capaJoa = registrar('joa', {
+  grupo:'A', nombre:'Área de Operaciones Conjunta (JOA)',
+  hint:'8 puntos WARNORD · cierre P8→P1 hipotético', tint: TINTE.RADAR, activa:true
+});
+
+(function construirJoa() {
+  const anillo = JOA_PUNTOS.map(p => p.ll);
+
+  const fichaJoa = {
+    id:'joa', kicker:'Límite operacional', titulo:'Área de Operaciones Conjunta',
+    alias:'JOA común a JTF OBO y JTF PACTEAK', bando:'NEUTRAL', proteccion:'ND',
+    rel:'Las órdenes superiores de ambos bandos delimitan la JOA mediante exactamente los mismos ocho puntos, lo que indica un espacio operacional común. Ninguna orden indica datum, secuencia geométrica, cierre, límites verticales ni exclusiones.',
+    datos: JOA_PUNTOS.map(p => [p.id, p.txt]),
+    fuentes:['〔BOR-OBO-001, pp. 6-7〕','〔BOR-PAC-001, p. 6〕'],
+    alerta:'La wiki conserva la lista de ocho puntos pero no genera un polígono autoritativo. El relleno y el cierre P8→P1 mostrados aquí son una reconstrucción de trabajo; no sustituyen georreferenciación, regla especial ni adjudicación de movimiento.'
+  };
+
+  enlazar(L.polygon(anillo, {
+    color: TINTE.RADAR, weight: 2, opacity: .9,
+    fillColor: TINTE.RADAR, fillOpacity: .035,
+    dashArray: null, interactive: true
+  }), fichaJoa).addTo(capaJoa);
+
+  /* Tramo de cierre resaltado como hipótesis */
+  L.polyline([JOA_PUNTOS[7].ll, JOA_PUNTOS[0].ll], {
+    color: TINTE.RADAR, weight: 2, opacity: .55, dashArray: '3 7', interactive: false
+  }).addTo(capaJoa);
+
+  JOA_PUNTOS.forEach(p => {
+    const v = L.circleMarker(p.ll, {
+      radius: 4, color: TINTE.RADAR, weight: 2, fillColor: '#ffffff', fillOpacity: 1
+    });
+    enlazar(v, {
+      id:'joa-' + p.id, kicker:'Vértice de la JOA', titulo:`Punto ${p.id}`,
+      alias:p.txt, bando:'NEUTRAL', proteccion:'ND',
+      rel:`Vértice ${p.id} del polígono de ocho puntos declarado por ambas WARNORD. La secuencia textual se conserva literal; su conexión geométrica es una hipótesis de la wiki.`,
+      datos:[['Coordenada de la orden', p.txt], ['Decimal', `${p.ll[0].toFixed(4)}, ${p.ll[1].toFixed(4)}`]],
+      fuentes: fichaJoa.fuentes,
+      alerta:'Las órdenes no declaran datum ni convención para puntos sobre aristas.'
+    }).addTo(capaJoa);
+
+    L.marker(p.ll, {
+      icon: L.divIcon({ className:'map-tag is-joa', html:p.id, iconSize:[24,12], iconAnchor:[-6,6] }),
+      interactive:false
+    }).addTo(capaJoa);
+  });
+
+  L.marker([6.4, 112.0], {
+    icon: L.divIcon({ className:'map-tag is-joa', html:'ÁREA DE OPERACIONES CONJUNTA', iconSize:[220,14], iconAnchor:[110,7] }),
+    interactive:false
+  }).addTo(capaJoa);
+
+  indexar({ txt:'joa area de operaciones conjunta limite warnord', etiqueta:'Área de Operaciones Conjunta',
+            tipo:'Límite operacional', bounds:L.latLngBounds(anillo), capa:'joa', ficha:fichaJoa });
+})();
+
+/* Fronteras internacionales */
+const capaFronteras = registrar('fronteras', {
+  grupo:'A', nombre:'Fronteras internacionales',
+  hint:'Malasia · Brunéi · Kalimantan · trazado simplificado', tint: TINTE.DISPUTADO, activa:true
+});
+
+const trazosFrontera = [];   // se repintan al cambiar de paleta
+
+FRONTERAS.forEach(f => {
+  const esInterna = f.id === 'fr-srw-sbh';
+  const ln = L.polyline(f.linea, {
+    color: esInterna ? '#7286a0' : TINTE.DISPUTADO,
+    weight: esInterna ? 1.4 : 2,
+    opacity: .85,
+    dashArray: esInterna ? '2 5' : '7 4'
+  });
+  trazosFrontera.push({ linea: ln, interna: esInterna, colorOscuro: esInterna ? '#7286a0' : TINTE.DISPUTADO });
+  enlazar(ln, {
+    id:f.id, kicker: esInterna ? 'Límite interestatal' : 'Frontera internacional',
+    titulo:f.nombre, alias:'Trazado simplificado', bando:'DISPUTADO', proteccion:'ND',
+    rel:'Traza de referencia para orientar el análisis de control territorial y de cruce. La República de Kalimantan es un Estado ficticio del escenario formado por Kalimantan Barat, Tengah, Selatan y Timur; no debe confundirse con las provincias reales de Indonesia ni tratarse como territorio neutral.',
+    datos:[['Naturaleza','polilínea simplificada'],['Uso','orientación · no cartográfico'],['Vértices', String(f.linea.length)]],
+    fuentes:['〔BOR-GEN-002, pp. 8-9, 20-23〕','〔BOR-OWS-008, mapa táctico · leyenda lateral〕'],
+    alerta:'Trazado generalizado con fines de orientación. No es un límite cartográfico ni prueba soberanía, control ni permiso de cruce.',
+    derivado:true
+  }).addTo(capaFronteras);
+});
+
+indexar({ txt:'frontera fronteras limite internacional malasia brunei kalimantan indonesia sarawak sabah',
+          etiqueta:'Fronteras internacionales', tipo:'Límites', capa:'fronteras',
+          bounds:L.latLngBounds(FRONTERAS.flatMap(f => f.linea)),
+          ficha:{
+            id:'fronteras', kicker:'Límites políticos del teatro', titulo:'Fronteras internacionales de Borneo',
+            alias:'Malasia (Sarawak y Sabah) · Brunéi Darussalam · República de Kalimantan',
+            bando:'DISPUTADO', proteccion:'ND',
+            rel:'La isla comprende la República de Kalimantan, Malasia Oriental —Sarawak y Sabah— y Brunéi. Kalimantan es un Estado ficticio del escenario, nacido cinco años antes de la separación de Kalimantan Barat, Tengah, Selatan y Timur, reconocido internacionalmente y miembro de la ONU y de ASEAN: es el beligerante, no territorio neutral. Indonesia es un actor distinto que condena la invasión pero declara neutralidad.',
+            datos:[['Estados en la isla','Kalimantan · Malasia Oriental · Brunéi'],
+                   ['Kalimantan','beligerante · Estado ficticio del escenario'],
+                   ['Indonesia','actor separado · neutralidad declarada'],
+                   ['Brunéi','dos sectores separados por Sarawak'],
+                   ['Sabah','sin conexión pavimentada continua este-oeste']],
+            fuentes:['〔BOR-GEN-002, pp. 8-9, 20-23〕','〔BOR-GEN-001, pp. 6, 14, 22-28〕'],
+            alerta:'Trazado simplificado con fines de orientación. No confundir la República de Kalimantan del escenario con las provincias reales de Indonesia ni tratarla como territorio neutral.',
+            derivado:true } });
+
+/* Marco jurídico y espacios neutrales */
+const capaJuridico = registrar('juridico', {
+  grupo:'A', nombre:'Marco jurídico y espacios neutrales',
+  hint:'Neutralidad indonesia · estrechos · restricciones', tint: TINTE.NEUTRAL, activa:false
+});
+
+JURIDICO.forEach(j => {
+  const ficha = {
+    id:j.id, kicker:'Marco jurídico operacional', titulo:j.nombre, alias:'',
+    bando:'NEUTRAL', proteccion:'ND', rel:j.rel, datos:j.datos,
+    fuentes:j.fuentes, alerta:j.alerta, derivado:j.derivado, ll:j.ll
+  };
+  enlazar(L.marker(j.ll, { icon: icono('juridico', TINTE.NEUTRAL, 26) }), ficha).addTo(capaJuridico);
+  L.marker(j.ll, {
+    icon: L.divIcon({ className:'map-tag is-neutral', html: esc(j.nombre.split(' · ')[0]), iconSize:[150,12], iconAnchor:[-14,-2] }),
+    interactive:false
+  }).addTo(capaJuridico);
+  indexar({ txt:(j.nombre + ' ' + j.rel).toLowerCase(), etiqueta:j.nombre, tipo:'Marco jurídico',
+            ll:j.ll, capa:'juridico', ficha });
+});
+
+/* ---- 4.2 GRUPO B · Infraestructura crítica ------------------------------- */
+
+const DEF_NODOS = [
+  { cat:'puerto-mayor',  id:'puertos-mayores', nombre:'Puertos mayores (SPOD)',   hint:'Capacidad de descarga principal',         act:true  },
+  { cat:'puerto-menor',  id:'puertos-menores', nombre:'Puertos de cabotaje',      hint:'Terminales litorales y fluviales',        act:true  },
+  { cat:'aerodromo',     id:'aerodromos',      nombre:'Aeródromos de Borneo (APOD)', hint:'Clase por aeronave y MOG del caso',    act:true  },
+  { cat:'apod-regional', id:'apod-regional',   nombre:'APOD regionales extrateatro', hint:'Flujo de la coalición · Figura 15',    act:false },
+  { cat:'energia',       id:'energia',         nombre:'Infraestructura energética', hint:'GNL · refino · campos costa afuera',    act:true  },
+  { cat:'mando',         id:'mando',           nombre:'Nodos de mando',           hint:'Alto Mando y distritos militares',        act:true  },
+  { cat:'dispositivo',   id:'dispositivo',     nombre:'Dispositivo terrestre',    hint:'Grandes unidades del OOB',                act:true  }
+];
+
+DEF_NODOS.forEach(d => {
+  const lote = NODOS.filter(n => n.cap === d.cat);
+  const tinte = d.cat === 'energia' ? TINTE.ENERGIA : null;
+  const capa = registrar(d.id, {
+    grupo:'B', nombre:d.nombre, hint:d.hint,
+    tint: tinte || TINTE.RADAR, activa:d.act, conteo:lote.length
+  });
+
+  lote.forEach(n => {
+    const color = d.cat === 'energia' ? TINTE.ENERGIA : (TINTE[n.bando] || TINTE.RADAR);
+    const ficha = {
+      id:n.id, kicker:d.nombre, titulo:n.nombre, alias:n.alias || '',
+      bando:n.bando, proteccion:n.proteccion, rel:n.rel, datos:n.datos,
+      fuentes:n.fuentes, alerta:n.alerta, derivado:n.derivado, hex:n.hex, ll:n.ll
+    };
+    const tam = (d.cat === 'puerto-menor' || d.cat === 'apod-regional') ? 21 : 26;
+    enlazar(L.marker(n.ll, { icon: icono(d.cat, color, tam), riseOnHover:true, title:n.nombre }), ficha).addTo(capa);
+    indexar({ txt:(n.nombre + ' ' + (n.alias || '') + ' ' + n.rel).toLowerCase(),
+              etiqueta:n.nombre, tipo:d.nombre, ll:n.ll, capa:d.id, ficha });
+  });
+});
+
+/* Etiquetas de los nodos principales */
+const capaEtiquetas = registrar('etiquetas', {
+  grupo:'E', nombre:'Rótulos de nodos principales',
+  hint:'Topónimos de puertos y aeródromos mayores', tint:'#7286a0', activa:true
+});
+
+/* Solo los nodos de mayor jerarquía llevan rótulo permanente; el resto se
+   identifica al pasar el cursor. Evita el amontonamiento a escala de teatro. */
+const PREFIJOS = /^(Puerto de |Puerto y base naval de |Aeropuerto Internacional de |Complejo de licuefacción de |Terminal de GNL de |Refinería de |Campo petrolero de |Instalaciones petroleras de |Refinería y terminal de |Bahía de )/;
+
+NODOS.filter(n => n.cap === 'puerto-mayor' || n.cap === 'mando').forEach(n => {
+  const clase = n.bando === 'OBO' ? 'is-hostile' : n.bando === 'PACTEAK' ? 'is-nato' : 'is-neutral';
+  const corto = n.nombre.replace(PREFIJOS, '').split(' · ')[0];
+  L.marker(n.ll, {
+    icon: L.divIcon({
+      className: 'map-tag is-node ' + clase,
+      html: esc(corto), iconSize: [150, 12], iconAnchor: [-13, 4]
+    }),
+    interactive: false
+  }).addTo(capaEtiquetas);
+});
+
+/* ---- 4.3 GRUPO C · Redes de movilidad ------------------------------------ */
+
+const capaVias = registrar('vias', {
+  grupo:'C', nombre:'Carretera Pan-Borneo / Trans-Borneo',
+  hint:'Troncal costera · único eje de alta velocidad', tint:'#46607d', activa:true, conteo:VIA_TRONCAL.length
+});
+
+VIA_TRONCAL.forEach(v => {
+  const col = v.bando === 'OBO' ? TINTE.OBO : v.bando === 'PACTEAK' ? TINTE.PACTEAK : TINTE.DISPUTADO;
+  const ficha = {
+    id:v.id, kicker:'Eje vial · ' + v.tramo, titulo:v.nombre,
+    alias:'Pan-Borneo Highway / Jalan Lintas Kalimantan',
+    bando:v.bando, proteccion:'ND', rel:v.nota,
+    datos:[['Tramo', v.tramo], ['Control', ETIQUETA_BANDO[v.bando] || v.bando],
+           ['Función', 'único eje terrestre de alta velocidad del teatro']],
+    fuentes:['〔BOR-GEN-002, pp. 19-21〕','〔BOR-OBO-003, pp. 7, 9-10〕','〔BOR-PAC-003, pp. 7-8〕'],
+    alerta:'La red pavimentada es limitada, el relieve restringe el movimiento y las lluvias causan deslizamientos. En Sabah no existe conexión pavimentada continua entre este y oeste.'
+  };
+  /* Trazo doble: halo oscuro + línea de color, legible sobre satélite */
+  L.polyline(v.linea, { color:'rgba(255,255,255,.85)', weight:6, opacity:.55, interactive:false }).addTo(capaVias);
+  enlazar(L.polyline(v.linea, { color: col, weight: 2.4, opacity: .95 }), ficha).addTo(capaVias);
+  indexar({ txt:(v.nombre + ' ' + v.nota).toLowerCase(), etiqueta:v.nombre, tipo:'Eje vial',
+            bounds:L.latLngBounds(v.linea), capa:'vias', ficha });
+});
+
+const capaRail = registrar('ferrocarril', {
+  grupo:'C', nombre:'Corredor férreo de Sabah',
+  hint:'Tanjung Aru–Papar–Beaufort–Tenom · Disrupt Rail', tint:'#13243b', activa:true
+});
+
+(function construirFerrocarril() {
+  const F = FERROCARRIL;
+  const ficha = {
+    id:F.id, kicker:'Corredor férreo', titulo:F.nombre, alias:'Sabah State Railway',
+    bando:'PACTEAK', proteccion:'RTL', rel:F.nota,
+    datos:[['Cabecera','Tanjung Aru · Kota Kinabalu'],['Término','Tenom'],
+           ['Tramo crítico','garganta del río Padas (Beaufort–Tenom)'],
+           ['Vulnerabilidad ciber','carta OWS de interrupción ferroviaria']],
+    fuentes:['〔BOR-GEN-002, p. 21〕','〔BOR-OWS-003, diaps. 8-11〕','〔BOR-OWS-008, mapa táctico · leyenda ferrocarril〕'],
+    alerta:'La ayuda OWS ilustra cartas para afectar ferrocarril, pero no asigna cartas definitivas a ninguna JTF. El efecto no está autorizado; es una capacidad representable.'
+  };
+
+  /* Estilo ferroviario: riel continuo + travesaños */
+  L.polyline(F.linea, { color:'rgba(255,255,255,.85)', weight:6, opacity:.6, interactive:false }).addTo(capaRail);
+  enlazar(L.polyline(F.linea, { color:'#13243b', weight:2.2, opacity:.95 }), ficha).addTo(capaRail);
+  L.polyline(F.linea, { color:'#ffffff', weight:5.5, opacity:.95, dashArray:'1 9', interactive:false }).addTo(capaRail);
+
+  F.estaciones.forEach(e => {
+    const fe = {
+      id:'rail-' + e.n, kicker:'Estación del corredor férreo', titulo:e.n, alias:'Sabah State Railway',
+      bando:'PACTEAK', proteccion:'RTL', rel:e.nota,
+      datos:[['Corredor','Tanjung Aru–Tenom'],['Modo','ferrocarril de vía única']],
+      fuentes:ficha.fuentes, ll:e.ll
+    };
+    enlazar(L.circleMarker(e.ll, {
+      radius:5.5, color:'#13243b', weight:2, fillColor:'#ffffff', fillOpacity:1
+    }), fe).addTo(capaRail);
+    indexar({ txt:(e.n + ' ferrocarril tren rail ' + e.nota).toLowerCase(), etiqueta:e.n,
+              tipo:'Estación ferroviaria', ll:e.ll, capa:'ferrocarril', ficha:fe });
+  });
+
+  L.marker([5.24,115.82], {
+    icon:L.divIcon({ className:'map-tag is-node is-warn', html:'DISRUPT RAIL ⚠', iconSize:[110,12], iconAnchor:[-8,6] }),
+    interactive:false
+  }).addTo(capaRail);
+
+  indexar({ txt:'ferrocarril sabah railway tren tenom beaufort papar tanjung aru padas disrupt rail',
+            etiqueta:F.nombre, tipo:'Corredor férreo', bounds:L.latLngBounds(F.linea),
+            capa:'ferrocarril', ficha });
+})();
+
+const capaChoke = registrar('chokepoints', {
+  grupo:'C', nombre:'Puntos de estrangulamiento',
+  hint:'Puentes, pasos y estrechos críticos', tint: TINTE.DISPUTADO, activa:true, conteo:CHOKEPOINTS.length
+});
+
+CHOKEPOINTS.forEach(c => {
+  const color = TINTE[c.bando] || TINTE.DISPUTADO;
+  const ficha = {
+    id:c.id, kicker:'Punto de estrangulamiento', titulo:c.nombre,
+    alias:c.coordFuente || '', bando:c.bando, proteccion:'ND', rel:c.rel,
+    datos:(c.datos || []).concat(c.coordFuente ? [['Coordenada de la fuente', c.coordFuente]] : []),
+    fuentes:c.fuentes, alerta:c.alerta, derivado:c.derivado, ll:c.ll
+  };
+  enlazar(L.marker(c.ll, { icon: icono('choke', color, 23) }), ficha).addTo(capaChoke);
+  indexar({ txt:(c.nombre + ' ' + c.rel).toLowerCase(), etiqueta:c.nombre,
+            tipo:'Punto de estrangulamiento', ll:c.ll, capa:'chokepoints', ficha });
+});
+</script>
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════════════════════
+   MÓDULO 5 · CAPA TÁCTICA (grupo D) Y RETÍCULA DE REFERENCIA (grupo E)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ---- 5.1 Burbujas A2/AD -------------------------------------------------- */
+const FAMILIAS = [
+  { id:'a2ad-sam',      nombre:'Defensa aérea · SA-20B',        hint:'Cúpulas SAM del OOB',              sis:['SA-20B'],            act:true  },
+  { id:'a2ad-cdcm',     nombre:'Defensa costera · CDCM',        hint:'CM-302 con anillo · C-802A sin alcance',  sis:['C-802A','CM-302'],   act:true  },
+  { id:'a2ad-balistico',nombre:'Fuerzas aeroespaciales · DF-21',hint:'ASBM y MRBM desde Banjarmasin',    sis:['DF-21D','DF-21C'],   act:false },
+  { id:'a2ad-sensores', nombre:'Sensores · OTH-T y AEW&C',      hint:'Bandas de detección declaradas',   sis:['OTH-T','KJ-2000'],   act:false }
+];
+
+/**
+ * Radio vigente de un sistema, en millas náuticas, según el preajuste.
+ * En modo «caso» un sistema sin alcance en el expediente NO dibuja anillo:
+ * la ausencia de dato es información, no un hueco que deba rellenarse.
+ */
+function radioNm(clave) {
+  const s = SISTEMAS[clave];
+  return estado.radios === 'caso' ? s.rCaso : (s.rBrief != null ? s.rBrief : s.rCaso);
+}
+function radioM(clave) {
+  const nm = radioNm(clave);
+  return nm == null ? null : nm * M_POR_NM;
+}
+function radioOrigen(clave) {
+  const s = SISTEMAS[clave];
+  if (estado.radios === 'brief') return 'valor del encargo (derivado)';
+  return s.rCaso != null ? 'valor del expediente (JIPOE)' : 'sin alcance en el expediente · anillo omitido';
+}
+
+const anillos = [];   // { circulo, sistema }
+
+function fichaAmenaza(e, hipotesis) {
+  const s = SISTEMAS[e.sistema];
+  const nm = radioNm(e.sistema);
+  return {
+    id:e.id,
+    kicker: (hipotesis ? 'Hipótesis del encargo · ' : '') + s.clase,
+    titulo: s.nombre + ' · ' + e.sede,
+    alias: e.unidad,
+    bando: 'OBO', proteccion:'OBJETIVO', ll:e.ll,
+    rel: hipotesis
+      ? 'Emplazamiento solicitado por el encargo que el orden de batalla no respalda. El XLSX del OOB no registra ninguna unidad de defensa aérea ni de defensa costera en Bintulu; el nodo permanece en el dispositivo aliado y es, por el contrario, un NAI de desembarco anfibio de la coalición. Se conserva como hipótesis de despliegue avanzado.'
+      : s.nota,
+    datos: [['Sistema', s.nombre], ['Clase', s.clase], ['Sede del OOB', e.sede],
+            ['Radio representado', nm != null ? num(nm, 0) + ' mn · ' + num(nm * M_POR_NM / 1000, 0) + ' km'
+                                              : 'sin anillo · alcance no declarado'],
+            ['Origen del radio', radioOrigen(e.sistema)]].concat(s.ficha),
+    fuentes: hipotesis ? ['〔Encargo del usuario · sin respaldo documental〕'].concat(s.fuentes) : s.fuentes,
+    alerta: hipotesis
+      ? 'Contradice el OOB y la situación territorial del caso: Kalimantan ocupa Kuching hasta Simanggang y Sandakan, no Bintulu. No usar para adjudicar alcance ni negación de acceso.'
+      : 'El JIPOE OBO advierte que los alcances aparecen sin condiciones de lanzamiento, sensores, perfiles ni fuentes, y que no deben convertirse directamente en anillos de amenaza ni en reglas del juego.',
+    derivado: hipotesis
+  };
+}
+
+function construirAmenaza(lista, capa, hipotesis) {
+  lista.forEach(e => {
+    const s = SISTEMAS[e.sistema];
+    const col = hipotesis ? TINTE.DISPUTADO : TINTE.OBO;
+    const ficha = fichaAmenaza(e, hipotesis);
+    /* El anillo se crea siempre con el mayor radio conocido; `aplicarRadios`
+       decide después si se muestra y con qué valor según el preajuste. */
+    const rSemilla = s.rCaso != null ? s.rCaso : s.rBrief;
+
+    if (rSemilla != null) {
+      const c = L.circle(e.ll, {
+        radius: rSemilla * M_POR_NM, color: col, weight: 1.3, opacity: .75,
+        fillColor: col, fillOpacity: .055,
+        dashArray: hipotesis ? '4 6' : (s.rCaso == null ? '2 6' : null)
+      });
+      enlazar(c, ficha);
+      anillos.push({ circulo: c, sistema: e.sistema, capa, ficha, hipotesis });
+    }
+
+    enlazar(L.marker(e.ll, { icon: icono('amenaza', col, 24) }), ficha).addTo(capa);
+    indexar({ txt:(s.nombre + ' ' + e.sede + ' ' + e.unidad + ' ' + e.sistema).toLowerCase(),
+              etiqueta:s.nombre + ' · ' + e.sede,
+              tipo: hipotesis ? 'Amenaza (hipótesis)' : 'Emplazamiento A2/AD',
+              ll:e.ll, capa: hipotesis ? 'a2ad-hipotesis' : (FAMILIAS.find(f => f.sis.includes(e.sistema)) || {}).id,
+              ficha });
+  });
+}
+
+FAMILIAS.forEach(f => {
+  const lote = A2AD.filter(e => f.sis.includes(e.sistema));
+  const capa = registrar(f.id, { grupo:'D', nombre:f.nombre, hint:f.hint, tint: TINTE.OBO, activa:f.act, conteo:lote.length });
+  construirAmenaza(lote, capa, false);
+});
+
+const capaHip = registrar('a2ad-hipotesis', {
+  grupo:'D', nombre:'Bintulu · despliegue avanzado (hipótesis)',
+  hint:'Solicitado por el encargo · NO respaldado por el OOB',
+  tint: TINTE.DISPUTADO, activa:false, conteo:A2AD_HIPOTESIS.length, aviso:
+  'El orden de batalla no sitúa SA-20B ni defensa costera en Bintulu. El nodo es aliado y figura como NAI 4 de desembarco anfibio. Capa marcada como hipótesis.'
+});
+construirAmenaza(A2AD_HIPOTESIS, capaHip, true);
+
+/* ---- 5.2 Campos de minas ------------------------------------------------- */
+const capaMinas = registrar('minas', {
+  grupo:'D', nombre:'Campos de minas evaluados', hint:'Sin fecha, extensión ni responsable declarados',
+  tint: TINTE.DISPUTADO, activa:true, conteo:MINAS.length
+});
+
+MINAS.forEach(m => {
+  const ficha = {
+    id:m.id, kicker:'Minado naval evaluado', titulo:m.nombre, alias:m.listas,
+    bando:'OBO', proteccion:'ND', rel:m.rel,
+    datos:[['Listado en', m.listas], ['Radio representado', num(m.r / 1000, 0) + ' km (indicativo)'],
+           ['Fecha del minado', 'no declarada'], ['Extensión', 'no declarada'], ['Responsable', 'no declarado']],
+    fuentes:m.fuentes,
+    alerta:'Ninguno de los productos ofrece fecha, extensión ni responsable del minado. El círculo es una marca de área, no un límite de campo minado.',
+    derivado:true, ll:m.ll
+  };
+  enlazar(L.circle(m.ll, {
+    radius:m.r, color: TINTE.DISPUTADO, weight:1.2, opacity:.85,
+    fillColor: TINTE.DISPUTADO, fillOpacity:.10, dashArray:'3 4'
+  }), ficha).addTo(capaMinas);
+  enlazar(L.marker(m.ll, { icon: icono('mina', TINTE.DISPUTADO, 24) }), ficha).addTo(capaMinas);
+  indexar({ txt:('minas minado ' + m.nombre + ' ' + m.rel).toLowerCase(), etiqueta:'Minas · ' + m.nombre,
+            tipo:'Campo de minas evaluado', ll:m.ll, capa:'minas', ficha });
+});
+
+/* ---- 5.3 Ejes de aproximación de la coalición ---------------------------- */
+[['ejes-mlcoa','MLCOA · curso más probable','Ataque malasio · desembarcos D+8 a D+15', TINTE.PACTEAK],
+ ['ejes-mdcoa','MDCOA · curso más peligroso','Esfuerzo terrestre EE.UU. y envolvente naval','#3b82f6']]
+.forEach(([id, nombre, hint, col], i) => {
+  const clave = i === 0 ? 'MLCOA' : 'MDCOA';
+  const lote = EJES.filter(e => e.coa === clave);
+  const capa = registrar(id, { grupo:'D', nombre, hint, tint:col, activa:false, conteo:lote.length });
+
+  lote.forEach(e => {
+    const ficha = {
+      id:e.id, kicker:'Eje de aproximación · ' + clave, titulo:e.nombre,
+      alias:'COA de la coalición evaluado por el JIPOE de JTF OBO',
+      bando:'PACTEAK', proteccion:'ND', rel:e.rel,
+      datos:[['Curso de acción', clave === 'MLCOA' ? 'Más probable (COA 1)' : 'Más peligroso (COA 2)'],
+             ['Secuencia declarada', e.hitos]],
+      fuentes:['〔BOR-OBO-003, pp. 16-19〕','〔BOR-OBO-003, PDF EN, pp. 14-16〕'],
+      alerta:'Los COA son hipótesis de inteligencia, no pronósticos. El original contiene secuencias internamente contradictorias: el inglés fija D+16 donde la traducción española dice D+6, y ordena destruir fuerzas cerca de Kuching a más tardar en D+8 mientras sitúa la ocupación en torno a D+5.',
+      derivado:true
+    };
+    L.polyline(e.linea, { color:'rgba(255,255,255,.85)', weight:7, opacity:.5, interactive:false }).addTo(capa);
+    enlazar(L.polyline(e.linea, {
+      color: col, weight:2.6, opacity:.95,
+      dashArray: clave === 'MDCOA' ? '10 5' : null
+    }), ficha).addTo(capa);
+
+    /* Punta de flecha en el extremo */
+    const fin = e.linea[e.linea.length - 1], prev = e.linea[e.linea.length - 2];
+    const ang = rumbo(prev, fin);
+    L.marker(fin, {
+      icon: L.divIcon({
+        className:'',
+        html:`<span class="mk" style="color:${col}"><svg width="18" height="18" viewBox="0 0 22 22"
+                 style="transform:rotate(${ang}deg)" fill="${col}" opacity=".95">
+                 <path d="M11 2 17 18 11 14 5 18z"/></svg></span>`,
+        iconSize:[18,18], iconAnchor:[9,9]
+      }), interactive:false
+    }).addTo(capa);
+
+    indexar({ txt:(e.nombre + ' ' + clave + ' ' + e.rel).toLowerCase(), etiqueta:e.nombre,
+              tipo:'Eje de aproximación', bounds:L.latLngBounds(e.linea), capa:id, ficha });
+  });
+});
+
+/* ---- 5.4 Áreas de interés (NAI) ------------------------------------------ */
+[['nai-obo','NAI · JIPOE de JTF OBO','7 áreas sobre los COA de la coalición','OBO', TINTE.OBO],
+ ['nai-pacteak','NAI · JIPOE de JTF PACTEAK','Áreas sobre el dispositivo de Kalimantan','PACTEAK', TINTE.PACTEAK]]
+.forEach(([id, nombre, hint, set, col]) => {
+  const lote = NAI.filter(n => n.set === set);
+  const capa = registrar(id, { grupo:'D', nombre, hint, tint:col, activa:false, conteo:lote.length });
+
+  lote.forEach(n => {
+    const ficha = {
+      id:n.id, kicker:'Área de interés · JIPOE ' + set, titulo:`NAI ${n.n} · ${n.nombre}`,
+      alias:n.ev, bando:set === 'OBO' ? 'PACTEAK' : 'OBO', proteccion:'ND',
+      rel:n.ind,
+      datos:[['Evento', n.ev], ['Ventana', n.vent], ['COA asociado', n.coa],
+             ['Radio representado', num(n.r / 1000, 0) + ' km (indicativo)']],
+      fuentes: set === 'OBO' ? ['〔BOR-OBO-003, p. 19〕'] : ['〔BOR-PAC-003, pp. 18-19〕'],
+      alerta:'Los NAI se numeran sobre el mapa original pero no tienen límites geográficos, criterios observables, activos, frecuencia ni decisión asociada. Deben transformarse en indicadores antes de alimentar CCIR.',
+      derivado:true, ll:n.ll
+    };
+    enlazar(L.circle(n.ll, {
+      radius:n.r, color:col, weight:1.2, opacity:.8, fillColor:col, fillOpacity:.07, dashArray:'6 4'
+    }), ficha).addTo(capa);
+    L.marker(n.ll, {
+      icon: L.divIcon({
+        className:'map-tag ' + (set === 'OBO' ? 'is-hostile' : 'is-nato'),
+        html:`NAI ${n.n}`, iconSize:[54,14], iconAnchor:[27,7]
+      }), interactive:false
+    }).addTo(capa);
+    indexar({ txt:(`nai ${n.n} ${n.nombre} ${n.ev} ${n.ind}`).toLowerCase(),
+              etiqueta:`NAI ${n.n} · ${n.nombre}`, tipo:'Área de interés ' + set,
+              ll:n.ll, capa:id, ficha });
+  });
+});
+
+/* ---- 5.5 Retícula hexagonal de referencia (derivada) --------------------- */
+/**
+ * Malla hexagonal de punta superior sobre un rectángulo geográfico.
+ * Geometría: W = ancho entre planos (grados); R = W/√3 = circunradio;
+ * altura total = 2R; separación entre filas = 1,5R; filas impares desfasadas W/2.
+ * Cerca del ecuador un grado de latitud y uno de longitud son casi equivalentes,
+ * por lo que la malla resulta visualmente regular sobre Borneo.
+ */
+const reticulas = [];   // { poligonos, anchoNm, colorOscuro }
+
+function mallaHex(anchoNm, caja, color, rotular, destino) {
+  const poligonos = [];
+  const W = anchoNm / 60;
+  const R = W / Math.sqrt(3);
+  const pasoY = 1.5 * R;
+  const [latMin, lonMin, latMax, lonMax] = caja;
+
+  const perfil = [];
+  for (let k = 0; k < 6; k++) {
+    const th = Math.PI / 180 * (90 - 60 * k);
+    perfil.push([R * Math.sin(th), R * Math.cos(th)]);
+  }
+
+  let fila = 0;
+  for (let lat = latMin; lat <= latMax + pasoY; lat += pasoY, fila++) {
+    const desfase = (fila % 2) * (W / 2);
+    let col = 0;
+    for (let lon = lonMin + desfase; lon <= lonMax + W; lon += W, col++) {
+      const vs = perfil.map(([dy, dx]) => [lat + dy, lon + dx]);
+      poligonos.push(
+        L.polygon(vs, { pane: 'malla', color, weight: .7, opacity: .3, fill: false, interactive: false }).addTo(destino)
+      );
+      if (rotular) {
+        L.marker([lat, lon], {
+          icon: L.divIcon({
+            className: 'map-tag is-hex',
+            html: `≈${String.fromCharCode(65 + (fila % 26))}${String(col).padStart(2, '0')}`,
+            iconSize: [40, 10], iconAnchor: [20, 5]
+          }), interactive: false
+        }).addTo(destino);
+      }
+    }
+  }
+  reticulas.push({ poligonos, anchoNm, colorOscuro: color });
+}
+
+/**
+ * Alinea los elementos cartográficos con la convención impresa del OWS cuando
+ * la vista «Tablero» está activa: retícula fina en rojo, macrohexágono en
+ * ámbar y frontera internacional en negro. `〔BOR-OWS-008, mapa táctico,
+ * leyenda lateral〕`  Fuera de esa vista recuperan su color original, que en
+ * el tema oscuro no compite con el rojo hostil.
+ */
+function aplicarPaletaTablero(esTablero) {
+  trazosFrontera.forEach(t => t.linea.setStyle({
+    color: esTablero ? (t.interna ? '#4a4a44' : '#030200') : t.colorOscuro,
+    weight: esTablero ? (t.interna ? 1.4 : 2.2) : (t.interna ? 1.4 : 2),
+    opacity: esTablero ? .95 : .85
+  }));
+
+  const raiz = getComputedStyle(document.documentElement);
+  const rojo  = raiz.getPropertyValue('--ows-reticula').trim() || '#fe0000';
+  const ambar = raiz.getPropertyValue('--ows-macro').trim()    || '#dd9713';
+  const fina = Math.min(...reticulas.map(r => r.anchoNm));
+  reticulas.forEach(r => {
+    const color = esTablero ? (r.anchoNm === fina ? rojo : ambar) : r.colorOscuro;
+    const opacity = esTablero ? (r.anchoNm === fina ? .34 : .55) : .3;
+    r.poligonos.forEach(p => p.setStyle({ color, opacity }));
+  });
+}
+
+/* ---- 5.6 Anclajes de retícula OWS ---------------------------------------- */
+const capaAnclajes = registrar('anclajes-ows', {
+  grupo:'E', nombre:'Anclajes de retícula OWS',
+  hint:'Identificadores impresos del tablero · leídos, no calculados',
+  tint:'#c2740a', activa:true, conteo: ANCLAJES_OWS.length,
+  aviso:'Estos identificadores proceden de lectura visual del tablero impreso y son la única relación verificada entre un lugar y un hexágono del juego. No permiten reconstruir la malla: el tablero no publica CRS, datum ni tabla de centros.'
+});
+
+const usados = new Map();   // evita que dos anclajes co-ubicados se pisen
+
+ANCLAJES_OWS.forEach(a => {
+  const nodo = NODOS.find(n => n.id === a.nodo);
+  if (!nodo) return;
+  const clave = nodo.ll.map(v => v.toFixed(2)).join(',');
+  const repeticion = usados.get(clave) || 0;
+  usados.set(clave, repeticion + 1);
+  const etiqueta = [a.reg && 'REG-100/' + a.reg, a.tac && 'TAC-10/' + a.tac]
+    .filter(Boolean).join('  ');
+
+  const ficha = {
+    id: 'anc-' + a.nodo, kicker: 'Anclaje de retícula OWS',
+    titulo: nodo.nombre, alias: etiqueta || 'Sin hexágono regional asignado',
+    bando: nodo.bando, proteccion: 'ND', ll: nodo.ll,
+    rel: a.nota,
+    datos: [['Hexágono regional', a.reg ? 'REG-100/' + a.reg : 'pendiente · no se asigna por aproximación'],
+            ['Microhexágono táctico', a.tac ? 'TAC-10/' + a.tac : 'pendiente'],
+            ['Precisión', a.precision],
+            ['Procedencia', 'lectura visual del tablero impreso a alta resolución']],
+    fuentes: ['〔BOR-OWS-008, mapa regional, sector Borneo; mapa táctico〕',
+              '〔marco-geoespacial-del-juego-borneo, sección 7 · Anclajes iniciales〕'],
+    alerta: 'Un anclaje sitúa un nodo dentro de un hexágono nombrado; no georreferencia la malla ni autoriza deducir hexágonos vecinos por proporción. Un hexágono puede contener tierra, mar, frontera y varias jurisdicciones: ocuparlo no equivale a controlar su contenido.'
+  };
+
+  enlazar(L.circleMarker(nodo.ll, {
+    radius: 9, color: '#c2740a', weight: 1.6, opacity: .9,
+    fillColor: '#c2740a', fillOpacity: .07, dashArray: a.precision === 'limite' ? '3 3' : null
+  }), ficha).addTo(capaAnclajes);
+
+  if (etiqueta) {
+    L.marker(nodo.ll, {
+      icon: L.divIcon({ className: 'map-tag is-node is-warn', html: esc(etiqueta),
+                        iconSize: [190, 13], iconAnchor: [-14, 16 - repeticion * 15] }),
+      interactive: false
+    }).addTo(capaAnclajes);
+  }
+
+  indexar({ txt: (nodo.nombre + ' ' + etiqueta + ' anclaje hexagono reticula ows').toLowerCase(),
+            etiqueta: nodo.nombre + ' · ' + (etiqueta || 'anclaje pendiente'),
+            tipo: 'Anclaje de retícula OWS', ll: nodo.ll, capa: 'anclajes-ows', ficha });
+});
+
+const capaHex100 = registrar('hex-100', {
+  grupo:'E', nombre:'Retícula de referencia 100 NM', hint:'Equivalente REG-100 · DERIVADA',
+  tint: TINTE.DISPUTADO, activa:false,
+  aviso:'NO reproduce la malla del juego. Medido sobre el tablero impreso: sus hexágonos son de cara plana con paso de fila constante de 543 px, constancia que en la proyección del mapa no equivale a una distancia geográfica fija, de modo que los «100 NM» del panel son nominales. Esta malla se genera por geometría y sus identificadores llevan «≈»: no corresponden a los del tablero.'
+});
+mallaHex(100, [-6, 103, 10, 123], '#c2740a', true, capaHex100);
+
+const capaHex50 = registrar('hex-50', {
+  grupo:'E', nombre:'Retícula de referencia 50 NM', hint:'Equivalente TAC-50 · DERIVADA',
+  tint:'#dd9713', activa:false,
+  aviso:'Malla derivada de apoyo visual. No sustituye la lectura directa del mapa táctico ni permite convertir automáticamente entre escalas. Para relacionar un lugar con un hexágono real del juego, use la capa «Anclajes de retícula OWS».'
+});
+mallaHex(50, [-4, 108, 8, 120], '#b98a1f', false, capaHex50);
+</script>
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════════════════════
+   MÓDULO 6 · INTERFAZ: ÁRBOL DE CAPAS, BUSCADOR, INSPECTOR Y MEDICIÓN
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+
+const GRUPOS = [
+  { k:'A', t:'Límites y control operacional' },
+  { k:'B', t:'Infraestructura crítica' },
+  { k:'C', t:'Redes de movilidad' },
+  { k:'D', t:'Capa táctica y amenaza' },
+  { k:'E', t:'Referencia y rótulos' }
+];
+
+/* ---- 6.1 Árbol de capas --------------------------------------------------- */
+function construirArbol() {
+  const raiz = $('#tree');
+  raiz.innerHTML = '';
+
+  GRUPOS.forEach(g => {
+    const lote = Array.from(CAPAS.entries()).filter(([, c]) => c.grupo === g.k);
+    if (!lote.length) return;
+
+    const det = document.createElement('details');
+    det.className = 'branch';
+    det.open = (g.k === 'A' || g.k === 'B');   // C, D y E se abren bajo demanda
+    det.dataset.grupo = g.k;
+
+    const filas = lote.map(([id, c]) => {
+      const pista = c.hint + (c.conteo ? ' · ' + c.conteo : '');
+      return `
+      <label class="layer" style="--layer-tint:${c.tint}" title="${esc(c.nombre + ' — ' + pista)}">
+        <input type="checkbox" data-capa="${id}" ${c.activa ? 'checked' : ''}>
+        <span class="layer__box" aria-hidden="true"></span>
+        <span class="layer__meta">
+          <span class="layer__name">${esc(c.nombre)}</span>
+          <span class="layer__hint">${esc(pista)}</span>
+        </span>
+        <span class="layer__swatch" aria-hidden="true"></span>
+      </label>`;
+    }).join('');
+
+    const avisos = lote.filter(([, c]) => c.aviso)
+      .map(([, c]) => `<p class="caveat"><b>${esc(c.nombre)}:</b> ${esc(c.aviso)}</p>`).join('');
+
+    det.innerHTML = `
+      <summary class="branch__head">
+        <span class="branch__idx" aria-hidden="true">${g.k}</span>
+        <span class="branch__title">${esc(g.t)}</span>
+        <span class="branch__count" data-cuenta="${g.k}"></span>
+        <svg class="branch__chev" width="11" height="11" viewBox="0 0 16 16" fill="none"
+             stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg>
+      </summary>
+      <div class="branch__body">${filas}${avisos}</div>`;
+
+    raiz.appendChild(det);
+  });
+
+  raiz.addEventListener('change', ev => {
+    const cb = ev.target.closest('input[data-capa]');
+    if (cb) aplicarCapa(cb.dataset.capa, cb.checked);
+  });
+
+  /* `summary` acepta el clic nativo: evitamos que el checkbox lo propague */
+  raiz.addEventListener('click', ev => { if (ev.target.closest('.layer')) ev.stopPropagation(); });
+}
+
+function aplicarCapa(id, encender) {
+  const c = CAPAS.get(id);
+  if (!c) return;
+  c.activa = encender;
+  if (encender) c.grupoLeaflet.addTo(mapa); else mapa.removeLayer(c.grupoLeaflet);
+  refrescarContadores();
+}
+
+function refrescarContadores() {
+  let activas = 0;
+  GRUPOS.forEach(g => {
+    const lote = Array.from(CAPAS.values()).filter(c => c.grupo === g.k);
+    const on = lote.filter(c => c.activa).length;
+    activas += on;
+    const el = document.querySelector(`[data-cuenta="${g.k}"]`);
+    if (el) el.textContent = `${on}/${lote.length}`;
+    const rama = document.querySelector(`.branch[data-grupo="${g.k}"]`);
+    if (rama) rama.classList.toggle('is-lit', on > 0);
+  });
+  $('#tmLayers').textContent = String(activas);
+  $('#tmEnts').textContent = String(INDICE.length);
+}
+
+/* ---- 6.2 Inspector de entidades ------------------------------------------ */
+const inspector = $('#inspector');
+
+function abrirFicha(f, objeto) {
+  estado.seleccion = f.id;
+  const tinte = TINTE[f.bando] || TINTE.RADAR;
+  inspector.style.setProperty('--side-tint', tinte);
+  inspector.classList.add('is-open');
+
+  $('#ispKicker').textContent = f.kicker || 'Ficha técnica';
+  $('#ispTitle').textContent  = f.titulo;
+  $('#ispAlias').textContent  = f.alias || '';
+
+  /* Distintivos: bando, protección, confianza */
+  const claseBando = { OBO:'obo', PACTEAK:'pacteak', NEUTRAL:'neutral', DISPUTADO:'rtl' }[f.bando] || 'info';
+  const prot = ETIQUETA_PROT[f.proteccion] || ETIQUETA_PROT.ND;
+  let chips = `<span class="chip chip--${claseBando}">${esc(ETIQUETA_BANDO[f.bando] || 'Sin bando')}</span>` +
+              `<span class="chip chip--${prot.c}">${esc(prot.t)}</span>`;
+  if (f.derivado) chips += `<span class="chip chip--rtl">Derivado · no autoritativo</span>`;
+  if (f.hex)     chips += `<span class="chip chip--info">${esc(f.hex)}</span>`;
+  $('#ispChips').innerHTML = chips;
+
+  /* Cuerpo */
+  const partes = [];
+
+  if (f.rel) partes.push(
+    `<section class="block"><h3 class="block__label">Relevancia operacional</h3><p>${esc(f.rel)}</p></section>`);
+
+  if (f.ll) {
+    const [la, lo] = f.ll;
+    let bloque =
+      `<section class="block"><h3 class="block__label">Posición</h3>
+        <div class="coords">
+          <div class="coord-card"><span>Latitud</span><b>${dms(la, true)}</b></div>
+          <div class="coord-card"><span>Longitud</span><b>${dms(lo, false)}</b></div>
+          <div class="coord-card"><span>Decimal</span><b>${dec(la)} ${dec(lo)}</b></div>
+          <div class="coord-card"><span>Referencia</span><b>WGS84 · GEO</b></div>
+        </div>`;
+    if (estado.anclaje) {
+      const d = distanciaM(estado.anclaje, f.ll);
+      bloque += `<div class="rangeline"><span>Desde el último punto medido</span>
+                   <b>${num(aNm(d))} NM · ${num(aKm(d))} km</b></div>`;
+    }
+    bloque += `</section>`;
+    partes.push(bloque);
+  }
+
+  if (f.datos && f.datos.length) {
+    partes.push(`<section class="block"><h3 class="block__label">Datos del escenario</h3><dl class="facts">` +
+      f.datos.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('') + `</dl></section>`);
+  }
+
+  if (f.alerta) partes.push(
+    `<section class="block"><p class="note-warn"><b>Control:</b> ${esc(f.alerta)}</p></section>`);
+
+  if (f.fuentes && f.fuentes.length) {
+    partes.push(`<section class="block"><h3 class="block__label">Fuentes</h3><ul class="cites">` +
+      f.fuentes.map(c => `<li>${esc(c)}</li>`).join('') + `</ul></section>`);
+  }
+
+  $('#ispBody').innerHTML = partes.join('');
+
+  /* Realce del símbolo seleccionado */
+  $$('.mk.is-picked').forEach(el => el.classList.remove('is-picked'));
+  if (objeto && objeto.getElement) {
+    const el = objeto.getElement();
+    const mk = el && el.querySelector('.mk');
+    if (mk) mk.classList.add('is-picked');
+  }
+}
+
+function cerrarFicha() {
+  inspector.classList.remove('is-open');
+  estado.seleccion = null;
+  $$('.mk.is-picked').forEach(el => el.classList.remove('is-picked'));
+}
+
+/* Estado inicial del inspector */
+$('#ispBody').innerHTML = `
+  <div class="inspector__empty">
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+      <path d="M12 2 3 6.5v7C3 18.6 6.9 22 12 22s9-3.4 9-8.5v-7z"/><path d="M12 8.5v7M8.5 12h7"/>
+    </svg>
+    <p>Seleccione un marcador, un eje o un área del mapa para abrir su ficha técnica.<br>
+       Use el buscador para localizar un nodo por nombre, sistema o número de NAI.</p>
+  </div>`;
+
+/* ---- 6.3 Buscador --------------------------------------------------------- */
+const campoQ = $('#q');
+const cajaHits = $('#hits');
+let hitsActuales = [];
+let hitIdx = -1;
+
+function buscar(texto) {
+  const t = texto.trim().toLowerCase();
+  if (t.length < 2) { cajaHits.hidden = true; hitsActuales = []; return; }
+
+  const tokens = t.split(/\s+/);
+  hitsActuales = INDICE
+    .map(e => {
+      const puntos = tokens.reduce((acc, tk) => {
+        if (e.etiqueta.toLowerCase().startsWith(tk)) return acc + 6;
+        if (e.etiqueta.toLowerCase().includes(tk))   return acc + 4;
+        if (e.txt.includes(tk))                       return acc + 1;
+        return acc - 8;
+      }, 0);
+      return { e, puntos };
+    })
+    .filter(x => x.puntos > 0)
+    .sort((a, b) => b.puntos - a.puntos)
+    .slice(0, 14)
+    .map(x => x.e);
+
+  hitIdx = -1;
+  cajaHits.innerHTML = hitsActuales.length
+    ? hitsActuales.map((e, i) =>
+        `<button class="hit" data-i="${i}" role="option"><strong>${esc(e.etiqueta)}</strong><em>${esc(e.tipo)}</em></button>`).join('')
+    : `<p class="hit__none">Sin coincidencias para «${esc(texto)}».</p>`;
+  cajaHits.hidden = false;
+}
+
+function irA(e) {
+  if (!e) return;
+  /* Enciende la capa de la entidad si estaba apagada */
+  if (e.capa && CAPAS.has(e.capa) && !CAPAS.get(e.capa).activa) {
+    const cb = document.querySelector(`input[data-capa="${e.capa}"]`);
+    if (cb) { cb.checked = true; }
+    aplicarCapa(e.capa, true);
+  }
+  if (e.bounds) mapa.flyToBounds(e.bounds, { padding:[70, 70], duration:1.1, maxZoom:9 });
+  else if (e.ll) mapa.flyTo(e.ll, Math.max(mapa.getZoom(), 8), { duration:1.1 });
+  if (e.ficha) abrirFicha(e.ficha);
+  cajaHits.hidden = true;
+  campoQ.blur();
+}
+
+campoQ.addEventListener('input', () => buscar(campoQ.value));
+campoQ.addEventListener('focus', () => { if (campoQ.value.trim().length >= 2) buscar(campoQ.value); });
+
+campoQ.addEventListener('keydown', ev => {
+  if (cajaHits.hidden || !hitsActuales.length) return;
+  if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+    ev.preventDefault();
+    hitIdx = (hitIdx + (ev.key === 'ArrowDown' ? 1 : -1) + hitsActuales.length) % hitsActuales.length;
+    $$('.hit').forEach((b, i) => b.classList.toggle('is-active', i === hitIdx));
+  } else if (ev.key === 'Enter') {
+    ev.preventDefault();
+    irA(hitsActuales[hitIdx >= 0 ? hitIdx : 0]);
+  } else if (ev.key === 'Escape') {
+    cajaHits.hidden = true;
+  }
+});
+
+cajaHits.addEventListener('click', ev => {
+  const b = ev.target.closest('.hit');
+  if (b) irA(hitsActuales[Number(b.dataset.i)]);
+});
+
+document.addEventListener('click', ev => {
+  if (!ev.target.closest('.finder')) cajaHits.hidden = true;
+});
+
+/* ---- 6.4 Herramienta de medición geodésica -------------------------------- */
+const medicion = {
+  puntos: [],
+  capa: L.layerGroup().addTo(mapa),
+  traza: null
+};
+
+function alternarMedicion(activar) {
+  estado.midiendo = activar !== undefined ? activar : !estado.midiendo;
+  $('#btnMeasure').setAttribute('aria-pressed', String(estado.midiendo));
+  $('#ruler').hidden = !estado.midiendo;
+  mapa.getContainer().style.cursor = estado.midiendo ? 'crosshair' : '';
+  /* El doble clic cierra la traza; no debe hacer zoom mientras se mide. */
+  if (estado.midiendo) mapa.doubleClickZoom.disable(); else mapa.doubleClickZoom.enable();
+  if (estado.midiendo) refrescarMedicion();
+}
+
+function limpiarMedicion() {
+  medicion.puntos = [];
+  medicion.capa.clearLayers();
+  medicion.traza = null;
+  estado.anclaje = null;
+  refrescarMedicion();
+}
+
+function agregarPunto(ll) {
+  medicion.puntos.push(ll);
+  estado.anclaje = ll;
+  dibujarMedicion();
+  refrescarMedicion();
+}
+
+function dibujarMedicion() {
+  medicion.capa.clearLayers();
+  const P = medicion.puntos;
+  if (!P.length) return;
+
+  if (P.length > 1) {
+    L.polyline(P, { pane:'medicion', color:'#05070a', weight:5, opacity:.6 }).addTo(medicion.capa);
+    L.polyline(P, { pane:'medicion', color: TINTE.RADAR, weight:1.8, opacity:.95, dashArray:'6 4' }).addTo(medicion.capa);
+  }
+
+  P.forEach((p, i) => {
+    L.circleMarker(p, {
+      pane:'medicion', radius: i === 0 ? 5 : 4,
+      color: TINTE.RADAR, weight:2, fillColor:'#0d1117', fillOpacity:1
+    }).addTo(medicion.capa);
+
+    if (i > 0) {
+      const d = distanciaM(P[i - 1], p);
+      const medio = [(P[i - 1][0] + p[0]) / 2, (P[i - 1][1] + p[1]) / 2];
+      L.tooltip({
+        pane:'medicion', permanent:true, direction:'center',
+        className:'seg-label-map', offset:[0, 0]
+      }).setContent(`${num(aNm(d))} NM · ${num(aKm(d), 0)} km`).setLatLng(medio).addTo(medicion.capa);
+    }
+  });
+}
+
+function refrescarMedicion() {
+  const P = medicion.puntos;
+  let total = 0;
+  for (let i = 1; i < P.length; i++) total += distanciaM(P[i - 1], P[i]);
+
+  $('#mTotalNm').textContent = num(aNm(total));
+  $('#mTotalKm').textContent = num(aKm(total)) + ' km';
+  $('#mPts').textContent = String(P.length);
+
+  if (P.length >= 2) {
+    const a = P[P.length - 2], b = P[P.length - 1];
+    const d = distanciaM(a, b);
+    $('#mLast').textContent = `${num(aNm(d))} NM`;
+    $('#mBrg').textContent  = `${String(Math.round(rumbo(a, b))).padStart(3, '0')}°`;
+  } else {
+    $('#mLast').textContent = '—';
+    $('#mBrg').textContent  = '—';
+  }
+}
+
+mapa.on('click', ev => {
+  if (!estado.midiendo) return;
+  agregarPunto([ev.latlng.lat, ev.latlng.lng]);
+});
+
+mapa.on('dblclick', () => {
+  if (estado.midiendo) alternarMedicion(false);
+});
+
+/* ---- 6.5 Preajuste de radios de amenaza ---------------------------------- */
+function aplicarRadios(modo) {
+  estado.radios = modo;
+  anillos.forEach(a => {
+    const r = radioM(a.sistema);
+    if (r == null) {                       // sin alcance declarado: se retira
+      if (a.capa.hasLayer(a.circulo)) a.capa.removeLayer(a.circulo);
+      return;
+    }
+    if (!a.capa.hasLayer(a.circulo)) a.capa.addLayer(a.circulo);
+    a.circulo.setRadius(r);
+    a.circulo.setStyle({
+      opacity: .75,
+      fillOpacity: .055,
+      dashArray: a.hipotesis ? '4 6' : (SISTEMAS[a.sistema].rCaso == null ? '2 6' : null)
+    });
+  });
+  /* Reabre la ficha activa para que refleje el nuevo radio */
+  if (estado.seleccion) {
+    const a = anillos.find(x => x.ficha.id === estado.seleccion);
+    if (a) {
+      const orig = A2AD.concat(A2AD_HIPOTESIS).find(e => e.id === a.ficha.id);
+      if (orig) abrirFicha(fichaAmenaza(orig, a.hipotesis));
+    }
+  }
+}
+
+/* ---- 6.6 Telemetría ------------------------------------------------------- */
+function escalaTexto() {
+  const c = mapa.getCenter();
+  const mPorPx = 40075016.686 * Math.abs(Math.cos(c.lat * Math.PI / 180)) / Math.pow(2, mapa.getZoom() + 8);
+  const cadaCien = mPorPx * 100;
+  return `${num(aNm(cadaCien))} NM / 100 px`;
+}
+
+const UMBRAL_ROTULOS = 7;   // por debajo, los topónimos se amontonan
+
+function refrescarTelemetria() {
+  $('#tmZoom').textContent  = 'Z' + mapa.getZoom().toFixed(1);
+  $('#tmScale').textContent = escalaTexto();
+  mapa.getContainer().classList.toggle('is-far', mapa.getZoom() < UMBRAL_ROTULOS);
+}
+
+mapa.on('mousemove', ev => {
+  $('#tmLat').textContent = dms(ev.latlng.lat, true);
+  $('#tmLon').textContent = dms(ev.latlng.lng, false);
+  $('#tmDec').textContent = `${dec(ev.latlng.lat)} ${dec(ev.latlng.lng)}`;
+});
+mapa.on('zoomend moveend', refrescarTelemetria);
+
+setInterval(() => { $('#tmDtg').textContent = dtgZulu(); }, 1000);
+$('#tmDtg').textContent = dtgZulu();
+$('#tmBase').textContent = BASES.dark.etiqueta.toUpperCase();
+
+/* ---- 6.7 Controles ------------------------------------------------------- */
+const rail = $('#rail');
+
+$('#btnCollapse').addEventListener('click', () => {
+  rail.classList.add('is-collapsed');
+  setTimeout(() => mapa.invalidateSize(), 300);
+});
+$('#btnExpand').addEventListener('click', () => {
+  rail.classList.remove('is-collapsed');
+  setTimeout(() => mapa.invalidateSize(), 300);
+});
+
+$('#btnMeasure').addEventListener('click', () => alternarMedicion());
+$('#btnRulerClose').addEventListener('click', () => alternarMedicion(false));
+$('#btnClear').addEventListener('click', () => { limpiarMedicion(); cerrarFicha(); mapa.closePopup(); });
+$('#btnIspClose').addEventListener('click', cerrarFicha);
+
+$('#btnJoa').addEventListener('click', () => {
+  mapa.flyToBounds(L.latLngBounds(JOA_PUNTOS.map(p => p.ll)), { padding:[50, 50], duration:1.2 });
+});
+
+$('#segBase').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-base]');
+  if (!b) return;
+  $$('#segBase button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  cambiarBase(b.dataset.base);
+});
+
+$('#segRadius').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-radius]');
+  if (!b) return;
+  $$('#segRadius button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  aplicarRadios(b.dataset.radius);
+});
+
+$('#btnLegend').addEventListener('click', () => {
+  const l = $('#legend');
+  const abierto = l.dataset.open === 'true';
+  l.dataset.open = String(!abierto);
+  $('#btnLegend').setAttribute('aria-expanded', String(!abierto));
+});
+
+document.addEventListener('keydown', ev => {
+  if (ev.target.matches('input, textarea')) return;
+  if (ev.key === '/')      { ev.preventDefault(); campoQ.focus(); }
+  if (ev.key === 'm')      alternarMedicion();
+  if (ev.key === 'Escape') { cerrarFicha(); alternarMedicion(false); cajaHits.hidden = true; }
+});
+
+/* ---- 6.8 Arranque --------------------------------------------------------- */
+function arrancar() {
+  /* La vista por defecto reproduce la paleta del tablero operacional OWS.
+     `cambiarBase` es la única ruta de inicialización: fija clases, filtros,
+     rótulos de referencia y repintado de retícula y fronteras. */
+  baseActiva = 'dark';
+  cambiarBase(BASE_INICIAL);
+  $$('#segBase button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.base === BASE_INICIAL)));
+  construirArbol();
+  CAPAS.forEach(c => { if (c.activa) c.grupoLeaflet.addTo(mapa); });
+  aplicarRadios(estado.radios);
+  refrescarContadores();
+  refrescarTelemetria();
+  mapa.fitBounds(L.latLngBounds(JOA_PUNTOS.map(p => p.ll)), { padding:[40, 40] });
+  setTimeout(() => $('#boot').classList.add('is-gone'), 420);
+}
+
+if (typeof L === 'undefined') {
+  $('#bootMsg').innerHTML =
+    'No se pudo cargar Leaflet desde la CDN. Abra el archivo con conexión a Internet, ' +
+    'o descargue <code>leaflet.js</code> y <code>leaflet.css</code> y sustituya las dos etiquetas de la cabecera por rutas locales.';
+} else {
+  arrancar();
+}
+
+/* Aviso si las teselas no llegan (uso sin red): la capa vacía sigue siendo útil */
+let teselasFallidas = 0;
+Object.values(BASES).forEach(b => {
+  if (b.capa.on) b.capa.on('tileerror', () => {
+    if (++teselasFallidas === 12) {
+      const nota = document.createElement('div');
+      nota.className = 'caveat';
+      nota.style.cssText = 'position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:860;max-width:420px;background:rgba(13,17,23,.96);border:1px solid #d29922;padding:8px 12px';
+      nota.innerHTML = '<b>Sin teselas:</b> la capa base no responde. Las capas del escenario siguen dibujándose; use «Vacío» como fondo.';
+      $('.cop__stage').appendChild(nota);
+      setTimeout(() => nota.remove(), 9000);
+    }
+  });
+});
+</script>
+</body>
+</html>
